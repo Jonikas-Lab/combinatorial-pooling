@@ -6,6 +6,9 @@ Various utilities for dealing with binary codes: representation, reading from a 
 from collections import defaultdict
 
 # TODO what's a sensible representation of binary data?  Certainly not strings.  For 1-dimensional binary codes I suppose I can just use integers
+# More options/info:
+#  http://stackoverflow.com/questions/142812/does-python-have-a-bitfield-type
+#  http://pypi.python.org/pypi/bitarray/
 def string_to_binary(string):
     """ Given a string such as 01001, return the integer that results from its binary representation."""
     return int('0b'+string.strip())
@@ -26,7 +29,12 @@ def read_code_file(infile,length=0,count=0):
 
 def bitwise_sum(int1):
     """ Given an integer, return the number of 1's in its binary representation: 1->1, 2->1, 3->2, 4->1, ..."""
-    return sum([int(x) for x in bin(int1)[2:]])
+    # bin(5) returns 0b101, so discard the first 2 characters and count the 1s in the rest:
+    return bin(int1)[2:].count('1')
+    # There are definitely better ways of doing this, but I should avoid premature optimization.
+    # see http://stackoverflow.com/questions/407587/python-set-bits-count-popcount for some ideas
+    # also http://stackoverflow.com/questions/109023/best-algorithm-to-count-the-number-of-set-bits-in-a-32-bit-integer
+    # note that some of the ideas won't work for large numbers!
 
 def Hamming_distance(int1,int2):
     """ Given two integers, return the number of bits by which their binary representations differ. """
@@ -54,6 +62,8 @@ def check_min_max_Hamming_distances(codes, min_distance=-1, max_distance=-1):
             dist = Hamming_distance(codes[i],codes[j])
             if not check_min(dist) and check_max(dist): return False
     return True
+    # more on Hamming distance comparisons/implementations: 
+    #  http://stackoverflow.com/questions/2420412/search-for-string-allowing-for-one-mismatch-in-any-location-of-the-string
 
 
 
