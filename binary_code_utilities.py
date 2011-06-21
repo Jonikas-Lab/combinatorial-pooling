@@ -4,30 +4,147 @@ Various utilities for dealing with binary codes: representation, reading from a 
 """
 
 from collections import defaultdict
+import bitstring
+import bitarray
 
-### Basic operations on single binary sequences (words/codewords)
+class BinaryCodeError(Exception):
+    """ Exceptions in the binary_code_utilities module."""
+    pass
 
-# TODO what's a sensible representation of binary data?  Certainly not strings.  For 1-dimensional binary codes I suppose I can just use integers... Not really, because int('000',2) is the same as int('0',2)
-# More options/info:
+### Binary string representations
+# what's a sensible representation of binary data?  Certainly not strings.  For 1-dimensional binary codes I suppose I can just use integers... Not really, because int('000',2) is the same as int('0',2)
 #  http://stackoverflow.com/questions/142812/does-python-have-a-bitfield-type
-#  http://pypi.python.org/pypi/bitarray/
-def string_to_binary(string):
-    """ Given a string such as 01001, return the integer that results from its binary representation."""
-    return int(string.strip(),2)
+# should support basic bitwise operators: &, |, ^, ~
 
-def bitwise_sum(int1):
-    """ Given an integer, return the number of 1's in its binary representation: 1->1, 2->1, 3->2, 4->1, ..."""
-    # bin(5) returns 0b101, so discard the first 2 characters and count the 1s in the rest:
-    return bin(int1)[2:].count('1')
-    # There are definitely better ways of doing this, but I should avoid premature optimization.
-    # see http://stackoverflow.com/questions/407587/python-set-bits-count-popcount for some ideas
-    # also http://stackoverflow.com/questions/109023/best-algorithm-to-count-the-number-of-set-bits-in-a-32-bit-integer
-    # note that some of the ideas won't work for large numbers!
+class Binary_codeword:
+    """ A binary codeword like '001' or '0110101010101'. Nothing complicated. """
+    # implemented with bistring: http://pypi.python.org/pypi/bitstring/2.2.0  http://code.google.com/p/python-bitstring/
+    # more convenient/logical than bitarray; has more documentation/support; may be slower but this shouldn't matter much.
 
-def Hamming_distance(int1,int2):
-    """ Given two integers, return the number of bits by which their binary representations differ. """
-    bitwise_xor = int1^int2
-    return bitwise_sum(bitwise_xor)
+    def __init__(self,val,length=0,check_length=False):
+        """ Generate the self.codeword binary word based on val; pad with 0s on the left to desired length if specified.
+        If check_length is True, instead of padding make sure the length is as specified, raise BinaryCodeError if not.
+        If val is a 0/1 string, strip spaces/newlines and convert straight to a bit-string.
+        If val is a list of 0/1 or True/False values, 
+        If val is an int, the bitstring should be as if the builtin bin function was used and the initial 0b stripped.
+        How other argument types will behave is not guaranteed - depends on the package used for the representation."""
+        # for binary strings just specify it's bin: '110' and '0b110' and '  110\n' and '11 0' all give the same result
+        if isinstance(val,str):   self.codeword = bitstring.BitArray(bin=val)
+        # for ints, use the uint method if we know the length, otherwise have to convert to string
+        elif isinstance(val,int):     
+            if length:  self.codeword = bitstring.BitArray(uint=val,length=length)
+            else:       self.codeword = bitstring.BitArray(bin(val))
+        # lists of 0/1 or True/False values natively work as expected; I don't know or care what happens with other types.
+        else:                       self.codeword = bitstring.BitArray(val)   
+        self.codeword = bitstring.BitArray(val)
+        # pad to given length or check the length if necessary
+        if length and not length==len(self):
+            if not check_length:
+                self.pad(length,0)
+            else:
+                if not self.check_length(length):
+                    raise BinaryCodeError("The created binary codeword didn't match the expected length!")
+
+    def pad(self,length,value=0):
+        """ Pad on the left to the given length (with 0 by default). """
+        length_diff = length - len(self)
+        # if the length is already correct, do nothing; if it's too high, complain
+        if length_diff==0:      pass
+        elif length_diff < 0:   raise BinaryCodeError("Can't pad the codeword to a length lower than its current length!")
+        else:                   self.codeword.prepend('0b' + length_diff * str(int(value)))
+
+    def check_length(self,length):
+        """ Pad on the left to the given length (with 0 by default). """
+        return length==len(self.codeword)
+
+    def weight(self):
+        """ Return the number of 1's in the codeword."""
+        return self.codeword.count(1)
+
+    def string(self):
+        """ Return a plain 0/1 string representation. """
+        return self.codeword.bin[2:]
+
+    def __len__(self):
+        """ Return the length of the codeword."""
+        return self.codeword.length()
+
+class Binary_codeword__bitarray:
+    """ A binary codeword like '001' or '0110101010101'. Nothing complicated. """
+    # implemented with bitarray: http://pypi.python.org/pypi/bitarray/
+
+    def __init__(self,val,length=0,check_length=False):
+        """ Generate the self.codeword binary word based on val; pad with 0s on the left to desired length if specified.
+        If check_length is True, instead of padding make sure the length is as specified, raise BinaryCodeError if not.
+        If val is a 0/1 string, strip spaces/newlines and convert straight to a bit-string.
+        If val is a list of 0/1 or True/False values, 
+        If val is an int, use the builtin bin function to convert to a string and strip the 0b before converting.
+        How other argument types will behave is not guaranteed - depends on the package used for the representation."""
+        # strip space from strings
+        if isinstance(val,str):     val = val.strip()
+        # by default bitarray(N) generates a RANDOM bitarray of length N! Not what I want at all.
+        elif isinstance(val,int):     val = bin(val)[:2]
+        # the other types specified above work as described with bitarray
+        #  - make sure that's still the case if I ever change the representation!
+        self.codeword = bitarray.bitarray(val)
+        if length and not length==len(self.codeword):
+            if not check_length:
+                self.pad(length,0)
+            else:
+                if not self.check_length(length):
+                    raise BinaryCodeError("The created binary codeword didn't match the expected length!")
+
+    def pad(self,length,value=0):
+        """ Pad on the left to the given length (with 0 by default). """
+        length_diff = length - len(self)
+        # if the length is already correct, do nothing; if it's too high, complain
+        if length_diff==0:      pass
+        elif length_diff < 0:   raise BinaryCodeError("Can't pad the codeword to a length lower than its current length!")
+        else:                   self.codeword[:0] = bitarray.bitarray(length_diff * str(int(value)))
+
+    def check_length(self,length):
+        """ Pad on the left to the given length (with 0 by default). """
+        return length==len(self.codeword)
+
+    def weight(self):
+        """ Return the number of 1's in the codeword."""
+        return self.codeword.count()
+    
+    def string(self):
+        """ Return a plain 0/1 string representation. """
+        return self.codeword.to01()
+
+    def __len__(self):
+        """ Return the length of the codeword."""
+        return self.codeword.length()
+
+
+def Hamming_distance(val1,val2):
+    """ Given two binary strings, return the number of bits by which their binary representations differ. """
+    bitwise_xor = val1^val2
+    return bitwise_xor.weight()
+
+
+### Binary code (set of binary strings) representation
+
+class Binary_code:
+    # TODO implement the rest of this!  Just started
+
+    def __init__(self,length):
+        self.length = length
+        self.codewords = set()
+
+    def add(self,val):
+        new_word = binary_codeword(val)
+        if not len(new_word)==self.length: 
+            raise BinaryCodeError("Trying to add a codeword of the wrong length to a binary code!")
+        self.codewords.add(new_word)
+
+    def size(self):
+        return len(self.codewords)
+
+    # TODO some of the more complex functions from below should actually be in this class
+
 
 ### Reading/writing files, generating codes from a generator matrix, etc
 
@@ -44,7 +161,6 @@ def read_code_file(infile,length=0,count=0):
     if count and not len(codes)==count:   
         sys.exit("Error: file %s contained %s codes, not %s as expected!")%(infile,len(codes),count)
     return codes
-
 
 
 ### More complex operations on codes
