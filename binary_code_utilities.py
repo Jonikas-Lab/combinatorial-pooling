@@ -32,33 +32,31 @@ class Binary_codeword:
         If val is a Binary_codeword instance, just copy it.
         How other argument types will behave is not guaranteed - depends on the package used for the representation."""
         # for binary strings just specify it's bin: '110' and '0b110' and '  110\n' and '11 0' all give the same result
-        if isinstance(val,str):   self.codeword = bitstring.BitArray(bin=val)
+        if isinstance(val,str):   
+            self.codeword = bitstring.BitArray(bin=val)
         # for ints, use the uint method if we know the length, otherwise have to convert to string
-        elif isinstance(val,int):     
+        elif isinstance(val,int):
             if length:  self.codeword = bitstring.BitArray(uint=val,length=length)
             else:       self.codeword = bitstring.BitArray(bin(val))
+        # for Binary_codeword instances, make a new one with the same bitstring
+        elif isinstance(val,Binary_codeword):
+            self.codeword = bitstring.BitArray(val.codeword)
         # lists of 0/1 or True/False values natively work as expected; I don't know or care what happens with other types.
         else:                       self.codeword = bitstring.BitArray(val)   
         # pad to given length or check the length if necessary
         if length and not length==len(self):
-            if not check_length:
-                self.pad(length,0)
-            else:
-                if not self.check_length(length):
-                    raise BinaryCodeError("The created binary codeword didn't match the expected length!")
-
-    def pad(self,length,value=0):
-        """ Pad on the left to the given length (with 0s by default); raise BinaryCodeError if it's already longer."""
-        if length-len(self) < 0:
-            raise BinaryCodeError("Can't pad the codeword to a length lower than its current length!")
-        self.codeword.prepend((length-len(self))*[value])
-
-    def check_length(self,length):
-        """ Pad on the left to the given length (with 0 by default). """
-        return length==len(self.codeword)
+            # if only checking the length, raise an error
+            if check_length:
+                raise BinaryCodeError("The created binary codeword didn't match the expected length!")
+            # otherwise pad with 0s on the left to the given length (does nothing if length < len(self)
+            self.codeword.prepend((length-len(self))*[0])
+            # unless it's already too long, then raise an error
+            if length-len(self) < 0:
+                raise BinaryCodeError("Can't pad the codeword %s to length %s, "%(self.codeword,length)
+                                      + "since that's lower than its current length!")
 
     def weight(self):
-        """ Return the number of 1's in the codeword."""
+        """ Return the number of 1's in the codeword (i.e. the Hamming weight or bitwise sum)."""
         return self.codeword.count(1)
 
     def string(self):
@@ -89,6 +87,10 @@ class Binary_codeword:
         #     there can be cases where x==y but hash(x)!=hash(y), which is BAD for hashing.  
         #   See http://docs.python.org/reference/datamodel.html#object.__hash__ for more on this.
         #   TODO really, in order to make this absolutely right, I should make sure the bitstrings are immutable...
+        # TODO is string comparison really what I want here?  How about when the lengths are different? Should bitstrings
+        #   with different lengths even be comparable?  I suppose they should just so I can sort stuff and get 
+        #   a consistent result. Possibly just sorting by length first would be better, but it doesn't matter much.
+        #   As long as identity works correctly and there's SOME sensible sorting, we're fine.
         return cmp(self.string(),other.string())
 
     def __hash__(self):
@@ -237,3 +239,52 @@ class Binary_code:
         # TODO implement using clique_find.py
 
 
+if __name__=='__main__':
+    """ If module is run directly, run tests. """
+    ### Binary_codeword tests
+    # creation with different value types
+    assert Binary_codeword('111').string() == '111'
+    assert Binary_codeword(7).string() == '111'
+    assert Binary_codeword('0b 111\n').string() == '111'
+    assert Binary_codeword([True,True,True]).string() == '111'
+    assert Binary_codeword(Binary_codeword('111')).string() == '111'
+    # initiation length-checks/padding: 
+    #   '111' has length 3, should work
+    Binary_codeword('111',3,check_length=True)
+    #   '111' doesn't have length 5, should raise an error
+    try:                    Binary_codeword('111',5,check_length=True)
+    except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+    else:                   raise BinaryCodeError("Binary_codeword initiation length-check didn't work!")
+    #   padding a length-3 string to the same length shouldn't change anything
+    assert Binary_codeword('111',3) == Binary_codeword('111')
+    #   padding a length-3 string to a higher length should work
+    assert Binary_codeword(7,4).string() == '0111'
+    assert Binary_codeword('111',5).string() == '00111'
+    #   padding a length-3 string to length 2 should raise an error
+    try:                    Binary_codeword('111',2)
+    except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+    else:                   raise BinaryCodeError("Binary_codeword initiation length-check didn't work!")
+    # equality and comparison
+    assert Binary_codeword('111') == Binary_codeword('111')
+    assert Binary_codeword('111') != Binary_codeword('101')
+    assert Binary_codeword('111') != Binary_codeword('1110')
+    assert Binary_codeword('111') != Binary_codeword('0111')
+    assert Binary_codeword('101') < Binary_codeword('111')
+    # bitwise operations
+    assert ~Binary_codeword('000') == Binary_codeword('111')
+    assert Binary_codeword('110') | Binary_codeword('011') == Binary_codeword('111')
+    assert Binary_codeword('110') & Binary_codeword('011') == Binary_codeword('010')
+    assert Binary_codeword('110') ^ Binary_codeword('011') == Binary_codeword('101')
+    # length
+    assert len(Binary_codeword('111')) == 3
+    assert len(Binary_codeword('00000')) == 5
+    # weight
+    assert Binary_codeword('111').weight() == 3
+    assert Binary_codeword('001').weight() == 1
+    assert Binary_codeword('00000').weight() == 0
+    # string and list representations
+    assert Binary_codeword('111').string() == '111'
+    assert Binary_codeword('111').list() == [1,1,1]
+
+    ### Binary_code tests
+    # TODO write some!
