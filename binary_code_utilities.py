@@ -215,14 +215,21 @@ class Binary_code:
         assert new_code.size()==self.size()
         return new_code
 
+    def invert(self):
+        """ Return a new Binary_code object containing the bitwise inverses of all the codewords in this code."""
+        new_code = Binary_code(self.length)
+        for codeword in self.codewords:
+            new_code.add((~codeword).string())
+        return new_code
+
     def choose_by_bit_sum(self,low,high):
         """ Remove all codewords with bit sums outside the low-high range."""
-        # TODO implement
         pass
+        # TODO implement
 
     def reduce_by_Hamming_distance(self,low,high,min_count):
         """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-hig range. """
-        # TODO implement using clique_find.py
         pass
+        # TODO implement using clique_find.py
 
 
