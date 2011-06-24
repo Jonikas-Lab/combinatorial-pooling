@@ -241,50 +241,145 @@ class Binary_code:
 
 if __name__=='__main__':
     """ If module is run directly, run tests. """
+    import sys
+
     ### Binary_codeword tests
-    # creation with different value types
-    assert Binary_codeword('111').string() == '111'
-    assert Binary_codeword(7).string() == '111'
-    assert Binary_codeword('0b 111\n').string() == '111'
-    assert Binary_codeword([True,True,True]).string() == '111'
-    assert Binary_codeword(Binary_codeword('111')).string() == '111'
-    # initiation length-checks/padding: 
-    #   '111' has length 3, should work
-    Binary_codeword('111',3,check_length=True)
-    #   '111' doesn't have length 5, should raise an error
-    try:                    Binary_codeword('111',5,check_length=True)
-    except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-    else:                   raise BinaryCodeError("Binary_codeword initiation length-check didn't work!")
-    #   padding a length-3 string to the same length shouldn't change anything
-    assert Binary_codeword('111',3) == Binary_codeword('111')
-    #   padding a length-3 string to a higher length should work
-    assert Binary_codeword(7,4).string() == '0111'
-    assert Binary_codeword('111',5).string() == '00111'
-    #   padding a length-3 string to length 2 should raise an error
-    try:                    Binary_codeword('111',2)
-    except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-    else:                   raise BinaryCodeError("Binary_codeword initiation length-check didn't work!")
-    # equality and comparison
-    assert Binary_codeword('111') == Binary_codeword('111')
-    assert Binary_codeword('111') != Binary_codeword('101')
-    assert Binary_codeword('111') != Binary_codeword('1110')
-    assert Binary_codeword('111') != Binary_codeword('0111')
-    assert Binary_codeword('101') < Binary_codeword('111')
-    # bitwise operations
-    assert ~Binary_codeword('000') == Binary_codeword('111')
-    assert Binary_codeword('110') | Binary_codeword('011') == Binary_codeword('111')
-    assert Binary_codeword('110') & Binary_codeword('011') == Binary_codeword('010')
-    assert Binary_codeword('110') ^ Binary_codeword('011') == Binary_codeword('101')
-    # length
-    assert len(Binary_codeword('111')) == 3
-    assert len(Binary_codeword('00000')) == 5
-    # weight
-    assert Binary_codeword('111').weight() == 3
-    assert Binary_codeword('001').weight() == 1
-    assert Binary_codeword('00000').weight() == 0
-    # string and list representations
-    assert Binary_codeword('111').string() == '111'
-    assert Binary_codeword('111').list() == [1,1,1]
+    if True:
+        print "Testing Binary_codeword functionality..."
+
+        # creation with different value types
+        assert Binary_codeword('111').string() == '111'
+        assert Binary_codeword(7).string() == '111'
+        assert Binary_codeword('0b 111\n').string() == '111'
+        assert Binary_codeword([True,True,True]).string() == '111'
+        assert Binary_codeword(Binary_codeword('111')).string() == '111'
+
+        # initiation length-checks/padding: 
+        #   '111' has length 3, should work
+        Binary_codeword('111',3,check_length=True)
+        #   '111' doesn't have length 5, should raise an error
+        try:                    Binary_codeword('111',5,check_length=True)
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Binary_codeword initiation length-check didn't work!")
+        #   padding a length-3 string to the same length shouldn't change anything
+        assert Binary_codeword('111',3) == Binary_codeword('111')
+        #   padding a length-3 string to a higher length should work
+        assert Binary_codeword(7,4).string() == '0111'
+        assert Binary_codeword('111',5).string() == '00111'
+        #   padding a length-3 string to length 2 should raise an error
+        try:                    Binary_codeword('111',2)
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Binary_codeword initiation length-check didn't work!")
+
+        # equality and comparison
+        assert Binary_codeword('111') == Binary_codeword('111')
+        assert Binary_codeword('111') != Binary_codeword('101')
+        assert Binary_codeword('111') != Binary_codeword('1110')
+        assert Binary_codeword('111') != Binary_codeword('0111')
+        assert Binary_codeword('101') < Binary_codeword('111')
+        # bitwise operations
+        assert ~Binary_codeword('000') == Binary_codeword('111')
+        assert Binary_codeword('110') | Binary_codeword('011') == Binary_codeword('111')
+        assert Binary_codeword('110') & Binary_codeword('011') == Binary_codeword('010')
+        assert Binary_codeword('110') ^ Binary_codeword('011') == Binary_codeword('101')
+        # length
+        assert len(Binary_codeword('111')) == 3
+        assert len(Binary_codeword('00000')) == 5
+        # weight
+        assert Binary_codeword('111').weight() == 3
+        assert Binary_codeword('001').weight() == 1
+        assert Binary_codeword('00000').weight() == 0
+        # string and list representations
+        assert Binary_codeword('111').string() == '111'
+        assert Binary_codeword('111').list() == [1,1,1]
+        
+        # Hamming distance
+        assert Hamming_distance(Binary_codeword('000'),Binary_codeword('000')) == 0
+        assert Hamming_distance(Binary_codeword('111'),Binary_codeword('000')) == 3
+        assert Hamming_distance(Binary_codeword('101'),Binary_codeword('000')) == 2
+        assert Hamming_distance(Binary_codeword('101'),Binary_codeword('010')) == 3
+        # comparing bitstrings of different lengths should fail
+        try:               Hamming_distance(Binary_codeword('000'),Binary_codeword('0000'))
+        except ValueError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:              raise BinaryCodeError("Hamming distance between Binary_codewords of different lengths worked!")
+
+        print "...DONE"
 
     ### Binary_code tests
-    # TODO write some!
+    if True:
+        print "Testing Binary_code functionality..."
+
+        # basic creation from a list and all the properties
+        B = Binary_code(3,['110','101','011','000'])
+        assert B.length == 3
+        assert B.size() == 4
+        assert B.find_Hamming_distance_range() == (2,2)
+        assert B.find_bit_sum_counts() == [(0,1), (2,3)]
+        assert B.total_bit_sum() == 6
+
+        # adding a codeword
+        B = Binary_code(3,['110','101','011','000'])
+        C = Binary_code(3,B.codewords)
+        C.add('111')
+        assert C.length == B.length
+        assert C.size() == B.size() + 1
+        assert C.find_Hamming_distance_range() == (1,3)
+        assert C.find_bit_sum_counts() == B.find_bit_sum_counts() + [(3,1)]
+        assert C.total_bit_sum() == B.total_bit_sum() + 3
+
+        # inversion
+        B = Binary_code(3,['110','101','011','000'])
+        B_ = B.invert()
+        assert B_.length == B.length
+        assert B_.size() == B_.size()
+        assert B_.find_Hamming_distance_range() == B.find_Hamming_distance_range()
+        assert B_.find_bit_sum_counts() == sorted([(B.length-w,n) for (w,n) in B.find_bit_sum_counts()])
+        assert B_.total_bit_sum() == B.size() * B.length - B.total_bit_sum()
+
+        # adding parity bit
+        D = Binary_code(2,['11','10','01','00'])
+        assert D.length == 2
+        assert D.size() == 4
+        assert D.find_Hamming_distance_range() == (1,2)
+        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
+        assert D.total_bit_sum() == 4
+        E = D.add_parity_bit()
+        assert E.length == D.length + 1
+        assert E.size() == D.size()
+        assert E.find_Hamming_distance_range() == (2,2)
+        assert E.find_bit_sum_counts() == [(0,1), (2,3)]
+        assert E.total_bit_sum() == D.total_bit_sum() + 2
+
+        # check that creation fails if the length is wrong
+        try:                    B = Binary_code(4,['110','101','011','000'])
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Binary_code creation length-check didn't work!")
+        # check that creation fails if the expected count is wrong
+        try:                    B = Binary_code(3,['110','101','011','000'],expected_count=5)
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Binary_code creation expected count check didn't work!")
+        # check that add(val) fails if the length is wrong
+        B = Binary_code(3,['110','101','011','000'])
+        try:                    B.add('1111')
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Binary_code.add(val) length-check didn't work!")
+
+        # check that creation fails with inexistent method keyword
+        try:                    B = Binary_code(4,['110','101','011','000'],method='random')
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Binary_code creation length-check didn't work!")
+
+        # check creation from matrix generator file
+        infile1 = 'error-correcting_codes/19-10-5_generator'
+        try:            B19 = Binary_code(19,val=infile1,method='matrixfile',expected_count=2**10)
+        except IOError: sys.exit("Couldn't find input file %s to run matrix generator test."%infile1)
+        assert B19.find_bit_sum_counts() == [(0,1), (5,30), (6,64), (7,90), (8,150), (9,180), (10,168), (11,156), (12,104), (13,46), (14,24), (15,10), (16,1)]
+        B20 = B19.add_parity_bit()
+        assert B20.find_bit_sum_counts() == [(0, 1), (6, 94), (8, 240), (10, 348), (12, 260), (14, 70), (16, 11)]
+        # could also check Hamming distances, but those take a long time!
+        #assert B19.find_Hamming_distance_range() == (5,16)
+        #assert B20.find_Hamming_distance_range() == (6,16)
+
+        # TODO check creation from code list file?  I don't have one right now - could get rid of that option.
+
+        print "...DONE"
