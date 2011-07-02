@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python2
 """
 Clique-finding algorithm on graphs: given a graph, return a clique of size N if it exists.
 Implements rudimentary Node and Graph classes (probably wouldn't be useful for a general purpose). 
