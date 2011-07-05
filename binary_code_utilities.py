@@ -117,7 +117,10 @@ class Binary_code:
 
     def __init__(self,length,val=[],method='list',expected_count=0):
         """ Initialize with the given length, and add all elements of values to the set of codewords (default empty)."""
-        self.length = length
+        try: 
+            self.length = int(length)
+        except ValueError:  
+            raise BinaryCodeError("The length argument to Binary_code must be an int or possible to cast to an int!")
         self.method = method
         self.codewords = set()
         if method=='list':
@@ -253,6 +256,8 @@ class Binary_code:
         """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-hig range. """
         pass
         # TODO implement using clique_find.py
+
+    # (TODO will also need to implement reduce_to_number on Binary_code, for when the code size is 1024 but we only want 700 or something - how should the codewords to use be picked?  By lower or higher weight, or whichever weight is more extreme?  Also remember to remove the all-zero codeword, or invert the code to get rid of it if we need exactly 2**k samples!)
 
 
 if __name__=='__main__':
