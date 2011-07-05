@@ -137,8 +137,24 @@ class Binary_code:
 
     def add(self,val):
         """ Add Binary_code(val) codeword to the code, checking for correct length."""
-        # it's all right if val is a Binary_codeword already, that works too
+        # it's all right if val is a Binary_codeword already, that works too - similar to sets
         self.codewords.add(Binary_codeword(val,length=self.length,check_length=True))
+
+    def remove(self,val):
+        """ Remove Binary_code(val) codeword from the code; fail if val wasn't in the code, or is the wrong length."""
+        try:
+            self.codewords.remove(Binary_codeword(val,length=self.length,check_length=True))
+        # trying to remove an element from a set where it wasn't present raises KeyError - we want a similar behavior.
+        except KeyError:
+            raise BinaryCodeError("Codeword %s cannot be removed from code because it wasn't present!"%val)
+
+    def remove_all_zero_codeword(self):
+        """ If the code contains the all-zero codeword, remove it and return 1; otherwise return 0; never fail. """
+        try:
+            self.codewords.remove(Binary_codeword('0'*self.length,length=self.length))
+            return 1
+        except KeyError:
+            return 0
 
     def size(self):
         """ Return the number of codewords currently in the code."""
@@ -317,7 +333,7 @@ if __name__=='__main__':
         assert B.find_bit_sum_counts() == [(0,1), (2,3)]
         assert B.total_bit_sum() == 6
 
-        # adding a codeword
+        # adding and removing a codeword
         B = Binary_code(3,['110','101','011','000'])
         C = Binary_code(3,B.codewords)
         C.add('111')
@@ -326,6 +342,23 @@ if __name__=='__main__':
         assert C.find_Hamming_distance_range() == (1,3)
         assert C.find_bit_sum_counts() == B.find_bit_sum_counts() + [(3,1)]
         assert C.total_bit_sum() == B.total_bit_sum() + 3
+        C.remove('110')
+        assert C.length == B.length
+        assert C.size() == B.size()
+        assert C.find_Hamming_distance_range() == (1,3)
+        assert C.find_bit_sum_counts() == [(0,1), (2,2), (3,1)]
+        assert C.total_bit_sum() == B.total_bit_sum() + 3 - 2
+
+        # removing the all-zero codeword should return 1 if it was there and 0 if it wasn't, and never fail
+        assert C.remove_all_zero_codeword() == 1
+        assert C.length == B.length
+        assert C.size() == B.size() - 1
+        assert C.find_Hamming_distance_range() == (1,2)
+        assert C.find_bit_sum_counts() == [(2,2), (3,1)]
+        assert C.total_bit_sum() == B.total_bit_sum() + 3 - 2
+        assert C.remove_all_zero_codeword() == 0
+        assert C.length == B.length
+        assert C.size() == B.size() - 1
 
         # inversion
         B = Binary_code(3,['110','101','011','000'])
@@ -358,11 +391,17 @@ if __name__=='__main__':
         try:                    B = Binary_code(3,['110','101','011','000'],expected_count=5)
         except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
         else:                   raise BinaryCodeError("Binary_code creation expected count check didn't work!")
-        # check that add(val) fails if the length is wrong
+        # check that add/remove fails if the length is wrong
         B = Binary_code(3,['110','101','011','000'])
         try:                    B.add('1111')
         except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
         else:                   raise BinaryCodeError("Binary_code.add(val) length-check didn't work!")
+        try:                    B.remove('1111')
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Binary_code.remove(val) length-check didn't work!")
+        try:                    B.remove('111')
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Binary_code.remove(val) membership-check didn't work!")
 
         # check that creation fails with inexistent method keyword
         try:                    B = Binary_code(4,['110','101','011','000'],method='random')
@@ -380,6 +419,6 @@ if __name__=='__main__':
         #assert B19.find_Hamming_distance_range() == (5,16)
         #assert B20.find_Hamming_distance_range() == (6,16)
 
-        # TODO check creation from code list file?  I don't have one right now - could get rid of that option.
+        # TODO check creation from code list file?  I don't have one right now - could get rid of that option, or else add a print_to_file method, use that on one of the other codes and then test reading that in.  Or just not test it - it's just reading a file, after all.
 
         print "...DONE"
