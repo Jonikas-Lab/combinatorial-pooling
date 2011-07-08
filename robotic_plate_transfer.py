@@ -157,6 +157,8 @@ def get_plate_name_list_from_input(N_plates,ID_input):
     # otherwise generate list from string
     split_IDs = ID_input.split(',')
     if len(split_IDs) == N_plates:  
+        if not len(split_IDs)==len(set(split_IDs)):
+            raise PlateTransferError("You specified a list of plate names with duplicate values! Don't do that.")
         return split_IDs
     elif len(split_IDs) == 1:
         return ['%s%d'%(ID_input,n+1) for n in range(N_plates)]
@@ -388,21 +390,25 @@ def print_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, Biom
     """ Print transfer_file_command_list to one or more Biomek outfiles with given header.  
     The outfiles_Biomek argument must be a list: containing a single element if there will be one outfile 
     (in which case transfer_file_command_list should be a single list of command strings), 
-    or more for multiple outfiles (in which case transfer_file_command_list should be a list of matching length, 
-    with each element being a list of command strings to be written to the corresponding Biomek file). """
+    or more for multiple outfiles (in which case transfer_file_command_list should be a dict of matching length, 
+    with each key being the plate name which should match the Biomek file name, and each value being 
+    a list of command strings to be written to the corresponding Biomek file). """
     if len(outfiles_Biomek)==1:
         save_line_list_as_file(transfer_file_command_list, outfiles_Biomek[0], header=Biomek_header)
     else:
         # split the commands by source
-        transfer_file_command_sets = sorted(list(split_command_list_by_source(transfer_file_command_list).items()))
-        # TODO but what if the plate names aren't sorted in a sensible way? The lists won't match. Should that even be allowed?  Maybe I should just simplify all this and remove the option of passing a comma-separated plate ID list.
+        transfer_file_command_sets = split_command_list_by_source(transfer_file_command_list)
+        # Sort both the command set list (make list from dict first) and the Biomek outfile set.  
+        #  (They're based on the same underlying plate names passed to the function, plus invariant prefixes/suffixes, 
+        #  so they should always match once they're sorted, even if the plate names weren't sorted sensibly themselves.)
+        transfer_file_command_sets = sorted(list(transfer_file_command_sets.items()))
+        outfiles_Biomek.sort()
         # make sure the resulting lists match by length and by plate name
         if not len(transfer_file_command_sets) == len(outfiles_Biomek):
-            raise PlateTransferError("")
+            raise PlateTransferError("The number of Biomek outfiles and command data sets provided doesn't match!")
         for ((set_name,_),outfilename) in zip(transfer_file_command_sets,outfiles_Biomek):
             if not set_name in outfilename:
-                raise PlateTransferError("")
-        # TODO all this stuff above is rather complicated - maybe put it in a separate function and unit-test it?
+                raise PlateTransferError("Can't match the Biomek file names and command sets!")
         # write each data set to the corresponding file
         for ((_,data),outfilename) in zip(transfer_file_command_sets,outfiles_Biomek):
             save_line_list_as_file(data, outfilename, header=Biomek_header)
