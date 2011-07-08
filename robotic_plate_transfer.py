@@ -11,6 +11,7 @@ USAGE:  robotic_plate_transfer.py [options] outfile_base_name
 """
 
 import sys
+from collections import defaultdict
 from general_utilities import invert_list_to_dict, save_line_list_as_file, write_header_data
 
 from string import ascii_uppercase as letters    # this is 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -374,10 +375,13 @@ def generate_outfile_names(outfile_basename, if_multiple_files, number_of_files=
 
 
 def split_command_list_by_source(transfer_file_command_list):
-    """ Given a list of "Source,_,_,_,_" strings, split it into multiple lists, one for each Source value."""
-    # TODO implement
+    """ Split list of "x,_,_,_,_" strings into multiple lists by x value, return a (x_val: line_list) dictionary."""
+    data_dict = defaultdict(lambda: [])
+    for line in transfer_file_command_list:
+        source_plate = line.split(',')[0]
+        data_dict[source_plate].append(line)
+    return data_dict
     # TODO add this to the unit-test!
-    pass
 
 
 def print_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, Biomek_header=""):
@@ -389,9 +393,19 @@ def print_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, Biom
     if len(outfiles_Biomek)==1:
         save_line_list_as_file(transfer_file_command_list, outfiles_Biomek[0], header=Biomek_header)
     else:
-        assert len(transfer_file_command_list) == len(outfiles_Biomek)
-        for (data,outfile) in zip(transfer_file_command_list,outfiles_Biomek):
-            save_line_list_as_file(data, outfile, header=Biomek_header)
+        # split the commands by source
+        transfer_file_command_sets = sorted(list(split_command_list_by_source(transfer_file_command_list).items()))
+        # TODO but what if the plate names aren't sorted in a sensible way? The lists won't match. Should that even be allowed?  Maybe I should just simplify all this and remove the option of passing a comma-separated plate ID list.
+        # make sure the resulting lists match by length and by plate name
+        if not len(transfer_file_command_sets) == len(outfiles_Biomek):
+            raise PlateTransferError("")
+        for ((set_name,_),outfilename) in zip(transfer_file_command_sets,outfiles_Biomek):
+            if not set_name in outfilename:
+                raise PlateTransferError("")
+        # TODO all this stuff above is rather complicated - maybe put it in a separate function and unit-test it?
+        # write each data set to the corresponding file
+        for ((_,data),outfilename) in zip(transfer_file_command_sets,outfiles_Biomek):
+            save_line_list_as_file(data, outfilename, header=Biomek_header)
 
 
 def print_data_to_outfile(sample_number_position_codeword_list, pool_number_position_list, 
@@ -432,7 +446,8 @@ if __name__=='__main__':
     if test_run:
         print("*** You used the -T option - ignoring all other options and running the built-in example test run.")
         # MAYBE-TODO could define multiple test runs later?
-        test_input = "-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator"
+        #test_input = "-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator"
+        test_input = "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator"
         # MAYBE-TODO the -C option value above will only work if we're in the directory where the script is - fix that?
         print "Test run arguments:", test_input
         # regenerate options with test argument string
