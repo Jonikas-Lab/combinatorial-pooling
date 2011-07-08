@@ -92,12 +92,16 @@ def samples_and_code_to_Biomek_file(N_samples, N_pools, binary_code, volume,
                                     output_plate_N, output_plate_size, output_plate_names):
     """ Make a Biomek transfer file to combine N samples into M pools, using a provided binary code.
          
-        Assumes the samples are in sequential order over the provided number of same-sized input plates: 
+        Assumes the samples will be in sequential order over the provided number of same-sized input plates: 
         [plate1 well A1, plate1 well A2, ..., plate1 well B2, .., plate1 well A1, ...].
-        The pools will be similartly distributed over the provided number of output plates.  The number and size of 
+        The pools will be similarly distributed over the provided number of output plates.  The number and size of 
         output plates does not need to have any particular relationship to the number and size of input plates.
 
-        Arbitrarily assign codewords from the code to each sample; the pools correspond to each bit of the codeword. 
+        The two _plate_names arguments can be provided as a list with the appropriate number of elements, 
+        as a string with the appropriae number of elements separated by commas, or as a single-word string 
+        (in which case sequential numbers will be appended to it to generate the plate names).
+
+        Arbitrarily assigns codewords from the code to each sample; the pools correspond to each bit of the codeword. 
         Whenever a bit of the codeword for the sample is 1, that sample should be added to the corresponding pool, 
         so a line of the form "sample_plate_name,sample_plate_well,pool_plate_name,pool_plate_well,volume" is added to 
         the Biomek command list. 
@@ -122,6 +126,12 @@ def samples_and_code_to_Biomek_file(N_samples, N_pools, binary_code, volume,
     if N_samples < binary_code.size():
         print("Warning: N_samples is lower than the size of the provided binary code - an arbitrary subset of codewords "
               + "will be used.  You may want to reduce your code size manually for improved attributes.")
+
+    if not len(input_plate_names)==input_plate_N:
+        input_plate_names = get_plate_names_from_option_value(input_plate_N, input_plate_names)
+    if not len(output_plate_names)==output_plate_N:
+        output_plate_names = get_plate_names_from_option_value(output_plate_N, output_plate_names)
+
     # generate the plate+well position strings for each input sample and each output pool
     sample_positions = numbers_to_plate_and_well_IDs(N_samples, input_plate_size, input_plate_N, input_plate_names)
     pool_positions = numbers_to_plate_and_well_IDs(N_pools, output_plate_size, output_plate_N, output_plate_names)
@@ -151,7 +161,7 @@ def get_plate_names_from_option_value(N_plates,ID_string):
         raise PlateTransferError("Can't figure out how to name %s plates using string \"%s\"!"%(N_plates,ID_string))
 
 
-def test():
+def test_functionality():
     import testing_utilities
 
     if True:
@@ -261,8 +271,13 @@ def define_option_parser():
     """ Populates and returns an optparse option parser object, with __doc__ as usage."""
     from optparse import OptionParser
     parser = OptionParser(__doc__)
+
     parser.add_option('-t','--test_functionality', action='store_true', default=False, 
-                      help="Run the built-in test suite (ignores all other options/arguments; default False).")
+                      help="Run the built-in unit test suite (ignores all other options/arguments; default False).")
+    parser.add_option('-T','--test_run', action='store_true', default=False, 
+                      help="Run with a set of predetermined realistic options to make sure it more or less works "
+                      + "(default False). Ignores all other options; output file names can still be provided, "
+                      + "otherwise the output files will start with a test_ prefix.")
 
     parser.add_option('-n','--number_of_samples', type='int', metavar='N', help="Number of samples to pool (required).")
     parser.add_option('-N','--number_of_pools', type='int', metavar='M', help="Number of resulting pools (required).")
@@ -270,6 +285,12 @@ def define_option_parser():
                       help="File containing the binary code to use for the pooling (as a list of codewords).")
     parser.add_option('-C','--binary_code_generator_file', metavar='FILE', 
                       help="File containing the binary code to use for the pooling (as a generator matrix).")
+
+    parser.add_option('-m','--multiple_Biomek_files', action='store_true', default=True,
+                      help="Generate multiple Biomek files, one per source plate (on by default).")
+    parser.add_option('-o','--one_Biomek_file', action='store_false', dest='multiple_Biomek_files',
+                      help="Generate a single Biomek file regardless of number of plates involved (off by default).")
+    # TODO implement this!  Right now the result is always -o.
 
     parser.add_option('-s','--size_of_sample_plates', type='int', default=96, metavar='M', 
                       help="Sample (source) plate size (from %s)"%plate_sizes + " (default %default)")
@@ -292,7 +313,7 @@ def define_option_parser():
                       help="Header line for the Biomek transfer file (won't be printed if set to ''; default %default).")
 
     return parser
-    # TODO will I also need options for when I actually have more plates than will fit on the machine at once so I need to do everything by stages?  Probably!  Should also add a check to make sure if I'm NOT doing it in stages, there will be enough room on the machine to do all the transfers!  (how should the tips be counted? If at all?  Also add an option to not count tips, in case someone wants to just run the script until running out of tips, reload, etc, without running a new script with each reload)
+
 
 def get_binary_code(listfile=None,matrixfile=None):
     """ Given a listfile or matrixfile name (but not both!), return the generated binary code."""
@@ -363,23 +384,37 @@ if __name__=='__main__':
     parser = define_option_parser()
     (options, args) = parser.parse_args()
 
-    # if testing, don't even look for more options/arguments, just run the test suite
+    # If doing unit-testing, don't even look for more options/arguments, just run the test suite
     if options.test_functionality:
-        print("You used the -t option - ignoring all other options/arguments and running the built-in test suite.")
+        print("*** You used the -t option - ignoring all other options/arguments, running the built-in simple test suite.")
         print "Defined plate sizes: %s"%plate_sizes
-        test()
-        sys.exit(0)
+        test_functionality()
+        # if not doing a test run, exit now; doing a normal run after unit-testing isn't allowed, but doing a test run is.
+        if not options.test_run:
+            sys.exit(0)
 
-    # if not testing, run samples_and_code_to_Biomek_file
+    # Test run: robotic_plate_transfer.py -n 63 -N 15 -P 3 -i Source1 -C error-correcting_codes/15-6-6_generator test
+    # MAYBE-TODO could define multiple test runs later?
+    if options.test_run:
+        print("*** You used the -T option - ignoring all other options and running the built-in example test run.")
+        options.number_of_samples = 63
+        options.number_of_pools = 15
+        options.number_of_pool_plates = 3
+        options.sample_plate_IDs = 'Source1'
+        options.binary_code_generator_file = 'error-correcting_codes/15-6-6_generator'
+        # MAYBE-TODO the above will only work if we're in the directory where the script is - fix that?
+        if not args:    args = ['test']
+        print "Full options:", options
+
+    # run samples_and_code_to_Biomek_file
     options,two_outfilenames = check_options_and_args(parser,options,args)
-    # MAYBE-TODO maybe I should move the plate ID generation into samples_and_code_to_Biomek_file?
-    sample_plate_IDs = get_plate_names_from_option_value(options.number_of_sample_plates, options.sample_plate_IDs)
-    pool_plate_IDs = get_plate_names_from_option_value(options.number_of_pool_plates, options.pool_plate_IDs)
+    print "Output files:", two_outfilenames
     binary_code = get_binary_code(options.binary_code_list_file, options.binary_code_generator_file)
     args = (options.number_of_samples, options.number_of_pools, binary_code, options.volume_per_transfer, 
-            options.number_of_sample_plates, options.size_of_sample_plates, sample_plate_IDs, 
-            options.number_of_pool_plates, options.size_of_pool_plates, pool_plate_IDs)
+            options.number_of_sample_plates, options.size_of_sample_plates, options.sample_plate_IDs, 
+            options.number_of_pool_plates, options.size_of_pool_plates, options.pool_plate_IDs)
     result_data_tuple = samples_and_code_to_Biomek_file(*args)
     print_data_to_files(result_data_tuple, two_outfilenames, options.Biomek_file_header, options)
 
-
+    if options.test_run:
+        print("Test run finished. If you didn't get any errors, that's good. Check the output files to make sure.")
