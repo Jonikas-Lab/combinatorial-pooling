@@ -6,8 +6,7 @@ For more details see help for the samples_and_code_to_Biomek_file function in th
 
  -- Weronika Patena, Jonikas lab, Carnegie Institution, July 2011
 
-USAGE:  robotic_plate_transfer.py [options] data_outfile Biomek_outfile
-        robotic_plate_transfer.py [options] outfile_basename
+USAGE:  robotic_plate_transfer.py [options] outfile_base_name
         robotic_plate_transfer.py -t
 """
 
@@ -333,16 +332,16 @@ def get_binary_code(listfile=None,matrixfile=None):
 
 
 def check_options_and_args(parser,options,args):
-    """ Check that there is either one or two arguments and converts them into two filenames; check options. """
+    """ Take optparse parser/options/args; check the args and convert them into outfile names; check options. """
 
-    if len(args)==2:
-        (outfile_Biomek,outfile_data) = args
-    elif len(args)==1:
+    try:
         [outfile_prefix] = args
-        (outfile_Biomek,outfile_data) = [outfile_prefix+suffix for suffix in ['_Biomek.csv','.txt']]
-    else:
+    except ValueError:
         parser.print_help()
-        sys.exit("\nError: The arguments can be either exactly two output file names (Biomek file and samples/codes data file), or exactly one output file base name (_Biomek.csv and .txt will be added to it to generate two output file names).")
+        sys.exit("\nError: There must be exactly one output file base name (shown as X in the examples). "
+                 + "The general output file will be X.txt, the Biomek output file will be X_Biomek.csv "
+                 + "(or X_Biomek_Source1.csv, X_Biomek_Source2.csv, etc, with the -m option).")
+    (outfile_Biomek,outfile_data) = [outfile_prefix+suffix for suffix in ['_Biomek.csv','.txt']]
 
     if options.size_of_sample_plates not in plate_sizes or options.size_of_pool_plates not in plate_sizes:
         parser.error("Plate sizes (-s and -S) must be in integer in %s! No other plate sizes are defined."%plate_sizes)
@@ -356,9 +355,9 @@ def check_options_and_args(parser,options,args):
     return options,(outfile_Biomek,outfile_data)
 
 
-def print_data_to_files(result_data_tuple, two_outfilenames, Biomek_header="", options=None):
+def print_data_to_files(result_data_tuple, all_outfilenames, Biomek_header="", options=None):
     (transfer_file_command_list, sample_number_position_codeword_list, pool_number_position_list) = result_data_tuple
-    (outfile_Biomek,outfile_data) = two_outfilenames
+    (outfile_Biomek,outfile_data) = all_outfilenames
 
     ### Biomek file transfer file: just print the header and commands, nothing else
     save_line_list_as_file(transfer_file_command_list, outfile_Biomek, header=Biomek_header)
@@ -406,14 +405,14 @@ if __name__=='__main__':
         if not args:    args = ['test']
 
     # run samples_and_code_to_Biomek_file
-    options,two_outfilenames = check_options_and_args(parser,options,args)
-    print "Output files:", two_outfilenames
+    options,all_outfilenames = check_options_and_args(parser,options,args)
+    print "Output files:", all_outfilenames
     binary_code = get_binary_code(options.binary_code_list_file, options.binary_code_generator_file)
     args = (options.number_of_samples, options.number_of_pools, binary_code, options.volume_per_transfer, 
             options.number_of_sample_plates, options.size_of_sample_plates, options.sample_plate_IDs, 
             options.number_of_pool_plates, options.size_of_pool_plates, options.pool_plate_IDs)
     result_data_tuple = samples_and_code_to_Biomek_file(*args)
-    print_data_to_files(result_data_tuple, two_outfilenames, options.Biomek_file_header, options)
+    print_data_to_files(result_data_tuple, all_outfilenames, options.Biomek_file_header, options)
 
     if options.test_run:
         print("Test run finished. If you didn't get any errors, that's good. Check the output files to make sure.")
