@@ -393,9 +393,11 @@ if __name__=='__main__':
             sys.exit(0)
 
     # Test run: robotic_plate_transfer.py -n 63 -N 15 -P 3 -i Source1 -C error-correcting_codes/15-6-6_generator test
-    # MAYBE-TODO could define multiple test runs later?
-    if options.test_run:
+    # since we'll be redoing the parsing on an example string, the option value will be overwritten, so save it separately
+    test_run = options.test_run     
+    if test_run:
         print("*** You used the -T option - ignoring all other options and running the built-in example test run.")
+        # MAYBE-TODO could define multiple test runs later?
         test_input = "-n 63 -N 15 -P 3 -i Source1 -C error-correcting_codes/15-6-6_generator"
         # MAYBE-TODO the -C option value above will only work if we're in the directory where the script is - fix that?
         print "Test run arguments:", test_input
@@ -414,5 +416,5 @@ if __name__=='__main__':
     result_data_tuple = samples_and_code_to_Biomek_file(*args)
     print_data_to_files(result_data_tuple, all_outfilenames, options.Biomek_file_header, options)
 
-    if options.test_run:
-        print("Test run finished. If you didn't get any errors, that's good. Check the output files to make sure.")
+    if test_run:
+        print("*** Test run finished. If you didn't get any errors, that's good. Check the output files to make sure.")
