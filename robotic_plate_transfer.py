@@ -384,7 +384,7 @@ if __name__=='__main__':
     parser = define_option_parser()
     (options, args) = parser.parse_args()
 
-    # If doing unit-testing, don't even look for more options/arguments, just run the test suite
+    # Unit-testing - don't even look for more options/arguments, just run the test suite
     if options.test_functionality:
         print("*** You used the -t option - ignoring all other options/arguments, running the built-in simple test suite.")
         print "Defined plate sizes: %s"%plate_sizes
@@ -397,14 +397,13 @@ if __name__=='__main__':
     # MAYBE-TODO could define multiple test runs later?
     if options.test_run:
         print("*** You used the -T option - ignoring all other options and running the built-in example test run.")
-        options.number_of_samples = 63
-        options.number_of_pools = 15
-        options.number_of_pool_plates = 3
-        options.sample_plate_IDs = 'Source1'
-        options.binary_code_generator_file = 'error-correcting_codes/15-6-6_generator'
-        # MAYBE-TODO the above will only work if we're in the directory where the script is - fix that?
+        test_input = "-n 63 -N 15 -P 3 -i Source1 -C error-correcting_codes/15-6-6_generator"
+        # MAYBE-TODO the -C option value above will only work if we're in the directory where the script is - fix that?
+        print "Test run arguments:", test_input
+        # regenerate options with test argument string
+        (options, _) = parser.parse_args(test_input.split())
+        # if an outfile name was provided, accept it, otherwise set to 'test'
         if not args:    args = ['test']
-        print "Full options:", options
 
     # run samples_and_code_to_Biomek_file
     options,two_outfilenames = check_options_and_args(parser,options,args)
