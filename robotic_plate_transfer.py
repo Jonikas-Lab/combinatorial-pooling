@@ -353,12 +353,16 @@ def check_options_and_args(parser,options,args):
     return options,outfile_basename
 
 
-def generate_outfile_names(outfile_basename, if_multiple_files):
+def generate_outfile_names(outfile_basename, if_multiple_files, number_of_files, file_plate_names):
     """ Given the base outfile name, generate full outfile names (X -> X.txt and X_Biomek.csv or similar). """
-    (outfile_data,outfile_Biomek) = [outfile_basename+suffix for suffix in ['.txt','_Biomek.csv']]
-    # TODO implement the -m/-o options here - this should return a single outfile_Biomek with -o, or a list with -m.
+    outfile_data = outfile_basename+'.txt'
+    if not if_multiple_files:
+        outfiles_Biomek = [outfile_basename+'_Biomek.csv']
+    else:
+        pass
+        # TODO implement returning a list of outfiles based on number_of_files and plate names!
     # TODO add this to the unit-test!
-    return (outfile_data,outfile_Biomek)
+    return (outfile_data,outfiles_Biomek)
 
 
 def split_command_list_by_source(transfer_file_command_list):
@@ -368,19 +372,28 @@ def split_command_list_by_source(transfer_file_command_list):
     pass
 
 
-def print_data_to_Biomek_files(transfer_file_command_list, outfile_Biomek, Biomek_header=""):
-    ### Biomek file transfer file: just print the header and commands, nothing else
-    save_line_list_as_file(transfer_file_command_list, outfile_Biomek, header=Biomek_header)
-    # TODO need to come up with another mechanism with the -m option!
+def print_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, Biomek_header=""):
+    """ Print transfer_file_command_list to one or more Biomek outfiles with given header.  
+    The outfiles_Biomek argument must be a list: containing a single element if there will be one outfile 
+    (in which case transfer_file_command_list should be a single list of command strings), 
+    or more for multiple outfiles (in which case transfer_file_command_list should be a list of matching length, 
+    with each element being a list of command strings to be written to the corresponding Biomek file). """
+    if len(outfiles_Biomek)==1:
+        save_line_list_as_file(transfer_file_command_list, outfiles_Biomek[0], header=Biomek_header)
+    else:
+        assert len(transfer_file_command_list) == len(outfiles_Biomek)
+        for (data,outfile) in zip(transfer_file_command_list,outfiles_Biomek):
+            save_line_list_as_file(data, outfile, header=Biomek_header)
 
 
-def print_data_to_outfile(sample_number_position_codeword_list, pool_number_position_list, outfile_data, options=None):
+def print_data_to_outfile(sample_number_position_codeword_list, pool_number_position_list, 
+                          outfile_data, outfiles_Biomek, options=None):
     """ Print data to main outfile: header information (command, path, date/time, options - all as #-start comments), 
     the sample_number_position_codeword_list, and the pool_number_position_list. """
     # print all the usual header information (command, path, date/time, options)
     OUTFILE = open(outfile_data,'w')
     write_header_data(OUTFILE,options)
-    OUTFILE.write("# Corresponding Biomek file: %s\n"%outfile_Biomek)
+    OUTFILE.write("# Corresponding Biomek file(s): %s\n"%outfiles_Biomek)
     # write the sample_number_position_codeword_list and pool_number_position_list data
     OUTFILE.write("\nsample_number,\tplate_and_well_position,\tcodeword\n")
     for (n,p,c) in sample_number_position_codeword_list:
@@ -411,7 +424,7 @@ if __name__=='__main__':
     if test_run:
         print("*** You used the -T option - ignoring all other options and running the built-in example test run.")
         # MAYBE-TODO could define multiple test runs later?
-        test_input = "-n 63 -N 15 -P 3 -i Source1 -C error-correcting_codes/15-6-6_generator"
+        test_input = "-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator"
         # MAYBE-TODO the -C option value above will only work if we're in the directory where the script is - fix that?
         print "Test run arguments:", test_input
         # regenerate options with test argument string
@@ -421,17 +434,16 @@ if __name__=='__main__':
 
     # run samples_and_code_to_Biomek_file
     options,outfile_basename = check_options_and_args(parser,options,args)
-    all_outfilenames = generate_outfile_names(outfile_basename,options.multiple_Biomek_files)
-    print "Output files:", all_outfilenames
+    (outfile_data, outfiles_Biomek) = generate_outfile_names(outfile_basename, options.multiple_Biomek_files,options.
+                                                             number_of_sample_plates, options.sample_plate_IDs)
+    print "Output files: %s and %s"%(outfile_data, outfiles_Biomek)
     binary_code = get_binary_code(options.binary_code_list_file, options.binary_code_generator_file)
     args = (options.number_of_samples, options.number_of_pools, binary_code, options.volume_per_transfer, 
             options.number_of_sample_plates, options.size_of_sample_plates, options.sample_plate_IDs, 
             options.number_of_pool_plates, options.size_of_pool_plates, options.pool_plate_IDs)
-    result_data_tuple = samples_and_code_to_Biomek_file(*args)
-    (transfer_file_command_list, sample_number_position_codeword_list, pool_number_position_list) = result_data_tuple
-    (outfile_data, outfile_Biomek) = all_outfilenames
-    print_data_to_Biomek_files(transfer_file_command_list, outfile_Biomek, options.Biomek_file_header)
-    print_data_to_outfile(sample_number_position_codeword_list, pool_number_position_list, outfile_data, options)
+    (transfer_file_command_list, sample_info_list, pool_info_list) = samples_and_code_to_Biomek_file(*args)
+    print_data_to_outfile(sample_info_list, pool_info_list, outfile_data, outfiles_Biomek, options)
+    print_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, options.Biomek_file_header)
 
     if test_run:
         print("*** Test run finished. If you didn't get any errors, that's good. Check the output files to make sure.")
