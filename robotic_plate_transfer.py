@@ -281,8 +281,7 @@ def define_option_parser():
                       help="Run the built-in unit test suite (ignores all other options/arguments; default False).")
     parser.add_option('-T','--test_run', action='store_true', default=False, 
                       help="Run with a set of predetermined realistic options to make sure it more or less works "
-                      + "(default False). Ignores all other options; output file names can still be provided, "
-                      + "otherwise the output files will start with a test_ prefix.")
+                      + "(default False). Ignores all other options/arguments; output files will start with 'test'.")
 
     parser.add_option('-n','--number_of_samples', type='int', metavar='N', help="Number of samples to pool (required).")
     parser.add_option('-N','--number_of_pools', type='int', metavar='M', help="Number of resulting pools (required).")
@@ -465,8 +464,8 @@ if __name__=='__main__':
     # Test run: robotic_plate_transfer.py -n 63 -N 15 -P 3 -i Source1 -C error-correcting_codes/15-6-6_generator test
     # since we'll be redoing the parsing on an example string, the option value will be overwritten, so save it separately
     test_run = options.test_run     
-    test_run_inputs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator", 
-                       "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator"]
+    test_run_inputs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator test1", 
+                       "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test2"]
     # MAYBE-TODO the -C option values above will only work if we're in the directory where the script is - fix that?
     # MAYBE-TODO add name/description strings to the test cases?
     if test_run:
@@ -474,9 +473,7 @@ if __name__=='__main__':
         for test_input in test_run_inputs:
             print " * New test run, with arguments:", test_input
             # regenerate options with test argument string
-            (options, _) = parser.parse_args(test_input.split())
-            # if an outfile name was provided, accept it, otherwise set to 'test'
-            if not args:    args = ['test']
+            (options, args) = parser.parse_args(test_input.split())
             run_main_function(parser,options,args)
         print("*** Test runs finished. If you didn't get any errors, that's good (warnings are all right). Check the output files to make sure.")
         # MAYBE-TODO add a -q option to silence the warnings for testing?
