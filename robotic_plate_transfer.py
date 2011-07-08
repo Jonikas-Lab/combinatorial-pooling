@@ -126,10 +126,8 @@ def samples_and_code_to_Biomek_file(N_samples, N_pools, binary_code, volume,
               + "will be used.  You may want to reduce your code size manually for improved attributes.")
 
     # generate plate names from strings if they weren't given as lists
-    if not len(input_plate_names)==input_plate_N:
-        input_plate_names = get_plate_names_from_option_value(input_plate_N, input_plate_names)
-    if not len(output_plate_names)==output_plate_N:
-        output_plate_names = get_plate_names_from_option_value(output_plate_N, output_plate_names)
+    input_plate_names = get_plate_name_list_from_input(input_plate_N, input_plate_names)
+    output_plate_names = get_plate_name_list_from_input(output_plate_N, output_plate_names)
 
     # generate the plate+well position strings for each input sample and each output pool
     sample_positions = numbers_to_plate_and_well_IDs(N_samples, input_plate_size, input_plate_N, input_plate_names)
@@ -148,16 +146,21 @@ def samples_and_code_to_Biomek_file(N_samples, N_pools, binary_code, volume,
     return transfer_file_command_list, sample_number_position_codeword_list, pool_number_position_list
 
 
-def get_plate_names_from_option_value(N_plates,ID_string):
-    """ Return a list of length N_plates generated using ID_string: if splitting ID_string on commas yields N results, 
-    return those; if it yields a single result X, return [X1,X2,...,XN]."""
-    split_IDs = ID_string.split(',')
+def get_plate_name_list_from_input(N_plates,ID_input):
+    """ Return a list of plate names of length N_plates, generated using ID_input. 
+    If ID_input is already a correct list, return it.  Otherwise assume it's a string: if splitting it 
+    on commas yields N results, return those; if it yields a single result X, return [X1,X2,...,XN]."""
+    # if we already have a list with the right number of arguments, just return it
+    if isinstance(ID_input,list) and len(ID_input)==N_plates:
+        return ID_input
+    # otherwise generate list from string
+    split_IDs = ID_input.split(',')
     if len(split_IDs) == N_plates:  
         return split_IDs
     elif len(split_IDs) == 1:
-        return ['%s%d'%(ID_string,n+1) for n in range(N_plates)]
+        return ['%s%d'%(ID_input,n+1) for n in range(N_plates)]
     else:
-        raise PlateTransferError("Can't figure out how to name %s plates using string \"%s\"!"%(N_plates,ID_string))
+        raise PlateTransferError("Can't figure out how to name %s plates using input \"%s\"!"%(N_plates,ID_input))
 
 
 def test_functionality():
@@ -259,10 +262,10 @@ def test_functionality():
         print "...DONE"
 
     if True:
-        print "Testing get_plate_names_from_option_value function..."
-        assert get_plate_names_from_option_value(4,'A,B,C,D') == ['A','B','C','D']
-        assert get_plate_names_from_option_value(4,'s') == ['s1','s2','s3','s4']
-        testing_utilities.call_should_fail(get_plate_names_from_option_value,(4,'A,B,C'),PlateTransferError)
+        print "Testing get_plate_name_list_from_input function..."
+        assert get_plate_name_list_from_input(4,'A,B,C,D') == ['A','B','C','D']
+        assert get_plate_name_list_from_input(4,'s') == ['s1','s2','s3','s4']
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(4,'A,B,C'),PlateTransferError)
         print "...DONE"
 
 
@@ -353,16 +356,21 @@ def check_options_and_args(parser,options,args):
     return options,outfile_basename
 
 
-def generate_outfile_names(outfile_basename, if_multiple_files, number_of_files, file_plate_names):
-    """ Given the base outfile name, generate full outfile names (X -> X.txt and X_Biomek.csv or similar). """
+def generate_outfile_names(outfile_basename, if_multiple_files, number_of_files=None, file_plate_names=None):
+    """ Given the base outfile name, generate full outfile names:
+    If if_multiple_files is false:  X -> (X.txt, [X_Biomek.csv])  (the last two arguments are ignored in this case)
+    Otherwise, something like this:  X -> (X.txt, [X_Biomek_A.csv,X_Biomek_B.csv,...])  
+      (assuming get_plate_name_list_from_input(number_of_files,file_plate_names) returns something like [A,B,...]) """
+
     outfile_data = outfile_basename+'.txt'
     if not if_multiple_files:
         outfiles_Biomek = [outfile_basename+'_Biomek.csv']
     else:
-        pass
-        # TODO implement returning a list of outfiles based on number_of_files and plate names!
-    # TODO add this to the unit-test!
+        # file_plate_names here can still be a single string or any number of other things - get a list
+        file_plate_names = get_plate_name_list_from_input(number_of_files, file_plate_names)
+        outfiles_Biomek = [outfile_basename+'_Biomek_'+plate+'.csv' for plate in file_plate_names]
     return (outfile_data,outfiles_Biomek)
+    # TODO add this to the unit-test!
 
 
 def split_command_list_by_source(transfer_file_command_list):
