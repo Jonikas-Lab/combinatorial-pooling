@@ -289,11 +289,9 @@ def define_option_parser():
                       help="File containing the binary code to use for the pooling (as a list of codewords).")
     parser.add_option('-C','--binary_code_generator_file', metavar='FILE', 
                       help="File containing the binary code to use for the pooling (as a generator matrix).")
-
-    parser.add_option('-m','--multiple_Biomek_files', action='store_true', default=True,
-                      help="Generate multiple Biomek files, one per source plate (on by default).")
-    parser.add_option('-o','--one_Biomek_file', action='store_false', dest='multiple_Biomek_files',
-                      help="Generate a single Biomek file regardless of number of plates involved (off by default).")
+    parser.add_option('-M','--add_mirror_pooling_files', action='store_true', default=False, 
+                      help="In addition to the normal Biomek file, also make files with commands for a 'mirrored' set: " 
+                      + "if sample A is in pool B in the normal set it isn't in the mirrored set, and vice versa.")
 
     parser.add_option('-s','--size_of_sample_plates', type='int', default=96, metavar='M', 
                       help="Sample (source) plate size (from %s)"%plate_sizes + " (default %default)")
@@ -309,6 +307,11 @@ def define_option_parser():
                       + "or a single string with no commas ('x' - plates will be named x1, x2 etc.) (default %default).")
     parser.add_option('-I','--pool_plate_IDs', default='Destination', metavar='S', 
                       help="Pool plate IDs - see -i for details on how it works. Default %default.")
+
+    parser.add_option('-m','--multiple_Biomek_files', action='store_true', default=True,
+                      help="Generate multiple Biomek files, one per source plate (on by default).")
+    parser.add_option('-o','--one_Biomek_file', action='store_false', dest='multiple_Biomek_files',
+                      help="Generate a single Biomek file regardless of number of plates involved (off by default).")
 
     parser.add_option('-v','--volume_per_transfer', type='int', default=20, metavar='V', 
                       help="Liquid volume to use for each sample-to-pool transfer (default %default).")
@@ -358,7 +361,7 @@ def check_options_and_args(parser,options,args):
     return options,outfile_basename
 
 
-def generate_outfile_names(outfile_basename, if_multiple_files, number_of_files=None, file_plate_names=None):
+def generate_outfile_names(outfile_basename,if_multiple_files,if_mirror_files,number_of_files=None,file_plate_names=None):
     """ Given the base outfile name, generate full outfile names:
     If if_multiple_files is false:  X -> (X.txt, [X_Biomek.csv])  (the last two arguments are ignored in this case)
     Otherwise, something like this:  X -> (X.txt, [X_Biomek_A.csv,X_Biomek_B.csv,...])  
@@ -371,7 +374,11 @@ def generate_outfile_names(outfile_basename, if_multiple_files, number_of_files=
         # file_plate_names here can still be a single string or any number of other things - get a list
         file_plate_names = get_plate_name_list_from_input(number_of_files, file_plate_names)
         outfiles_Biomek = [outfile_basename+'_Biomek_'+plate+'.csv' for plate in file_plate_names]
-    return (outfile_data,outfiles_Biomek)
+    if not if_mirror_files:
+        outfiles_Biomek_mirror = []
+    else:
+        outfiles_Biomek_mirror = [name.replace('_Biomek','_Biomek_mirror') for name in outfiles_Biomek]
+    return (outfile_data,outfiles_Biomek,outfiles_Biomek_mirror)
     # TODO add this to the unit-test!
 
 
@@ -385,7 +392,7 @@ def split_command_list_by_source(transfer_file_command_list):
     # TODO add this to the unit-test!
 
 
-def print_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, Biomek_header=""):
+def write_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, Biomek_header=""):
     """ Print transfer_file_command_list to one or more Biomek outfiles with given header.  
     The outfiles_Biomek argument must be a list: containing a single element if there will be one outfile 
     (in which case transfer_file_command_list should be a single list of command strings), 
@@ -413,7 +420,7 @@ def print_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, Biom
             save_line_list_as_file(data, outfilename, header=Biomek_header)
 
 
-def print_data_to_outfile(sample_number_position_codeword_list, pool_number_position_list, 
+def write_data_to_outfile(sample_number_position_codeword_list, pool_number_position_list, 
                           outfile_data, outfiles_Biomek, options=None):
     """ Print data to main outfile: header information (command, path, date/time, options - all as #-start comments), 
     the sample_number_position_codeword_list, and the pool_number_position_list. """
@@ -435,16 +442,20 @@ def run_main_function(parser,options,args):
     """ Run the main functionality of the module (see module and samples_and_code_to_Biomek_file docstrings).
     Takes an optparse parser object, and the options object and arg list generated by the parser."""
     options,outfile_basename = check_options_and_args(parser,options,args)
-    (outfile_data, outfiles_Biomek) = generate_outfile_names(outfile_basename, options.multiple_Biomek_files,options.
-                                                             number_of_sample_plates, options.sample_plate_IDs)
-    print "Output files: %s and %s"%(outfile_data, outfiles_Biomek)
+    (outfile_data, outfiles_Biomek, outfiles_Biomek_mirror) = generate_outfile_names(outfile_basename, options.multiple_Biomek_files,options.add_mirror_pooling_files, options.number_of_sample_plates, options.sample_plate_IDs)
+    print "Output files: %s and %s"%(outfile_data, outfiles_Biomek+outfiles_Biomek_mirror)
     binary_code = get_binary_code(options.binary_code_list_file, options.binary_code_generator_file)
     args = (options.number_of_samples, options.number_of_pools, binary_code, options.volume_per_transfer, 
             options.number_of_sample_plates, options.size_of_sample_plates, options.sample_plate_IDs, 
             options.number_of_pool_plates, options.size_of_pool_plates, options.pool_plate_IDs)
     (transfer_file_command_list, sample_info_list, pool_info_list) = samples_and_code_to_Biomek_file(*args)
-    print_data_to_outfile(sample_info_list, pool_info_list, outfile_data, outfiles_Biomek, options)
-    print_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, options.Biomek_file_header)
+    write_data_to_outfile(sample_info_list, pool_info_list, outfile_data, outfiles_Biomek+outfiles_Biomek_mirror, options)
+    write_data_to_Biomek_files(outfiles_Biomek, transfer_file_command_list, options.Biomek_file_header)
+    if options.add_mirror_pooling_files:
+        # TODO implement mirror_transfer_file_command_list!!  Using the Binary_code.__invert__ method (~x)?... Actually that can't be done based on transfer_file_command_list, that's all strings.  I guess base it on sample_info_list, and refactor/reuse code from samples_and_code_to_Biomek_file to make it happen?  Yes, basically split samples_and_code_to_Biomek_file into a function that assigns codewords to samples (and a different or same function that assigns plate/well position strings to samples and pools?) and a function that generates a transfer command file from a given sample+codeword list.  Then we can easily insert a mirroring step between the first and second function.
+        # TODO what should the destination plate names be for the mirrored set?  Spencer says they should be different from the normal ones (I guess just add a 'mirror' suffix or something)
+        mirror_transfer_file_command_list = make_mirror_transfer_commands(transfer_file_command_list)
+        write_data_to_Biomek_files(outfiles_Biomek_mirror, mirror_transfer_file_command_list, options.Biomek_file_header)
 
 
 if __name__=='__main__':
