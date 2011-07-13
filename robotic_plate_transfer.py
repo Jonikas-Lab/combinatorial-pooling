@@ -133,6 +133,54 @@ def test_functionality():
         print("...DONE")
 
     if True:
+        print("Testing generate_outfile_names function...")
+        # single Biomek file - easy
+        assert generate_outfile_names('X',0,0) == ('X.txt',['X_Biomek.csv'],[])
+        # file_plate_names can be specified in multiple ways
+        assert generate_outfile_names('X',1,0,1,['A']) == ('X.txt',['X_Biomek_A.csv'],[])
+        assert generate_outfile_names('X',1,0,1,'A') == ('X.txt',['X_Biomek_A.csv'],[])
+        assert generate_outfile_names('X',1,0,2,['A','B']) == ('X.txt',['X_Biomek_A.csv','X_Biomek_B.csv'],[])
+        assert generate_outfile_names('X',1,0,2,'A,B') == ('X.txt',['X_Biomek_A.csv','X_Biomek_B.csv'],[])
+        assert generate_outfile_names('X',1,0,2,'A') == ('X.txt',['X_Biomek_A1.csv','X_Biomek_A2.csv'],[])
+        # mirroring
+        assert generate_outfile_names('X',0,1) == ('X.txt',['X_Biomek.csv'],['X_Biomek_mirror.csv'])
+        assert generate_outfile_names('X',1,1,1,['A']) == ('X.txt',['X_Biomek_A.csv'],['X_Biomek_mirror_A.csv'])
+        assert generate_outfile_names('X',1,1,2,['A','B']) == ('X.txt',['X_Biomek_A.csv','X_Biomek_B.csv'],
+                                                               ['X_Biomek_mirror_A.csv','X_Biomek_mirror_B.csv'])
+        assert generate_outfile_names('X',1,1,2,'A,B') == ('X.txt',['X_Biomek_A.csv','X_Biomek_B.csv'],
+                                                           ['X_Biomek_mirror_A.csv','X_Biomek_mirror_B.csv'])
+        assert generate_outfile_names('X',1,1,2,'A') == ('X.txt',['X_Biomek_A1.csv','X_Biomek_A2.csv'],
+                                                         ['X_Biomek_mirror_A1.csv','X_Biomek_mirror_A2.csv'])
+        # the last two args must be given if second arg is True
+        testing_utilities.call_should_fail(generate_outfile_names,('X',1,0),PlateTransferError)
+        testing_utilities.call_should_fail(generate_outfile_names,('X',1,0,1),PlateTransferError)
+        testing_utilities.call_should_fail(generate_outfile_names,('X',1,0,['A']),PlateTransferError)
+        testing_utilities.call_should_fail(generate_outfile_names,('X',1,1),PlateTransferError)
+        testing_utilities.call_should_fail(generate_outfile_names,('X',1,1,1),PlateTransferError)
+        testing_utilities.call_should_fail(generate_outfile_names,('X',1,1,['A']),PlateTransferError)
+        print("...DONE")
+
+    if True:
+        print("Testing get_plate_name_list_from_input function...")
+        # input can be a list of appropriate length (return unchanged) or a string (split on ,)
+        assert get_plate_name_list_from_input(1,['A']) == ['A']
+        assert get_plate_name_list_from_input(1,'A') == ['A']
+        assert get_plate_name_list_from_input(4,['A','B','C','D']) == ['A','B','C','D']
+        assert get_plate_name_list_from_input(4,'A,B,C,D') == ['A','B','C','D']
+        assert get_plate_name_list_from_input(4,'A') == ['A1','A2','A3','A4']
+        # first arg should match length of second arg (unless the latter is 1)
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(1,'A,B,C'),PlateTransferError)
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(1,['A','B','C']),PlateTransferError)
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(2,'A,B,C'),PlateTransferError)
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(2,['A','B','C']),PlateTransferError)
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(4,'A,B,C'),PlateTransferError)
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(4,['A','B','C']),PlateTransferError)
+        # duplicate values not allowed
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(3,'A,A,C'),PlateTransferError)
+        testing_utilities.call_should_fail(get_plate_name_list_from_input,(3,['A','A','C']),PlateTransferError)
+        print("...DONE")
+
+    if True:
         print("Testing numbers_to_plate_and_well_IDs function...")
         assert numbers_to_plate_and_well_IDs(10, 6, 2, ['plate1','plate2']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate2,A1', 'plate2,A2', 'plate2,A3', 'plate2,B1']
         assert numbers_to_plate_and_well_IDs(10, 24, 1, ['plate1']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 'plate1,A6', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate1,B4']
@@ -148,45 +196,96 @@ def test_functionality():
                                            PlateTransferError, message="Shouldn't work, 10 isn't a valid plate size!")
         print("...DONE")
 
-    # TODO this function no longer exists; keeping code until I can switch it to test the new functions
-    if False:   
-        print("Testing samples_and_code_to_Biomek_file function... (ignore any warnings)")
-        B1 = binary_code_utilities.Binary_code(2,['01','10','11','00'])
-        command_list, sample_list, pool_list = samples_and_code_to_Biomek_file(3,2,B1,20, 1,24,['Src1'], 1,6,['Dest1'])
-        assert command_list == ['Src1,A1,Dest1,A2,20', 'Src1,A2,Dest1,A1,20', 'Src1,A3,Dest1,A1,20', 'Src1,A3,Dest1,A2,20']
-        assert sample_list == [(0, 'Src1,A1', '01'), (1, 'Src1,A2', '10'), (2, 'Src1,A3', '11')]
-        assert pool_list == [(0, 'Dest1,A1'), (1, 'Dest1,A2')]
-        testing_utilities.call_should_fail(samples_and_code_to_Biomek_file,(5,2,B1,20, 1,24,['Src1'], 1,6,['Dest1']),
-                                           PlateTransferError, message="Should be too many samples for given code!")
-        testing_utilities.call_should_fail(samples_and_code_to_Biomek_file,(4,2,B1,20, 1,24,['Src1'], 1,6,['Dest1']),
-                                           PlateTransferError, message="Should be too many samples after '00' removal!")
-        testing_utilities.call_should_fail(samples_and_code_to_Biomek_file,(3,1,B1,20, 1,24,['Src1'], 1,6,['Dest1']),
-                                           PlateTransferError, message="Number of pools doesn't match code length!")
-        testing_utilities.call_should_fail(samples_and_code_to_Biomek_file,(3,3,B1,20, 1,24,['Src1'], 1,6,['Dest1']),
-                                           PlateTransferError, message="Number of pools doesn't match code length!")
+    if True:
+        print("Testing assign_codewords function... (ignore any warnings)")
+        # make some text binary codes
+        [b01,b10,b11,b00] = [binary_code_utilities.Binary_codeword(x) for x in ['01','10','11','00']]
+        b_list_with_00 = [b01,b10,b11,b00]
+        b_list_without_00 = [b01,b10,b11]
+        B_with_00 = binary_code_utilities.Binary_code(2,b_list_with_00)
+        B_without_00 = binary_code_utilities.Binary_code(2,b_list_without_00)
+        [b01111,b10000,b10001] = [binary_code_utilities.Binary_codeword(x) for x in ['01111','10000','10001']]
+        b_list_longer = [b01111,b10000,b10001]
+        B_longer = binary_code_utilities.Binary_code(5,b_list_longer)
+        # first check that the result is a subset of the expected set - don't check the ordering
+        assert set(assign_codewords(3,2,B_without_00)) == set(b_list_without_00)
+        assert set(assign_codewords(2,2,B_without_00)).issubset(set(b_list_without_00))
+        assert set(assign_codewords(1,2,B_without_00)).issubset(set(b_list_without_00))
+        assert set(assign_codewords(3,5,B_longer)) == set(b_list_longer)
+        assert set(assign_codewords(2,5,B_longer)).issubset(set(b_list_longer))
+        assert set(assign_codewords(1,5,B_longer)).issubset(set(b_list_longer))
+        # the all-zero codeword should always be thrown away
+        assert set(assign_codewords(3,2,B_with_00)) == set(b_list_without_00)
+        assert set(assign_codewords(2,2,B_with_00)).issubset(set(b_list_without_00))
+        assert set(assign_codewords(1,2,B_with_00)).issubset(set(b_list_without_00))
+        # the words are sorted first lexicographically, and then by weight (number of 1s)
+        assert assign_codewords(3,2,B_without_00) == [b01,b10,b11]
+        assert assign_codewords(2,2,B_without_00) == [b01,b10]
+        assert assign_codewords(1,2,B_without_00) == [b01]
+        assert assign_codewords(3,5,B_longer) == [b10000,b10001,b01111]
+        assert assign_codewords(2,5,B_longer) == [b10000,b10001]
+        assert assign_codewords(1,5,B_longer) == [b10000]
+        # should fail when the number of samples or pools doesn't match
+        testing_utilities.call_should_fail(assign_codewords,(4,2,B_without_00), PlateTransferError, 
+                                           message="Should be too many samples for given code!")
+        testing_utilities.call_should_fail(assign_codewords,(4,2,B_with_00), PlateTransferError, 
+                                           message="Should be too many samples after '00' removal!")
+        testing_utilities.call_should_fail(assign_codewords,(4,1,B_without_00), PlateTransferError, 
+                                           message="Number of pools doesn't match code length!")
+        testing_utilities.call_should_fail(assign_codewords,(4,3,B_without_00), PlateTransferError, 
+                                           message="Number of pools doesn't match code length!")
+        print("...DONE")
 
+    if True:   
+        print("Testing make_Biomek_file_commands function...")
+        [b01,b10,b11,b00] = [binary_code_utilities.Binary_codeword(x) for x in ['01','10','11','00']]
+        # basic functionality for combinatorial pooling (note that 'x', 'A' etc here would really be 'plate1,A1' or such)
+        assert make_Biomek_file_commands([b10],['x'],['A','B'],5) == ['x,A,5']
+        assert make_Biomek_file_commands([b01],['x'],['A','B'],5) == ['x,B,5']
+        assert make_Biomek_file_commands([b11],['x'],['A','B'],5) == ['x,A,5','x,B,5']
+        assert make_Biomek_file_commands([b01,b10,b11],['x','y','z'],['A','B'],5) == ['x,B,5','y,A,5','z,A,5','z,B,5']
+        assert make_Biomek_file_commands([b11,b10,b01],['x','y','z'],['A','B'],5) == ['x,A,5','x,B,5','y,A,5','z,B,5']
+        assert make_Biomek_file_commands([b01,b01,b01],['x','y','z'],['A','B'],5) == ['x,B,5','y,B,5','z,B,5']
+        # should fail if there are length mismatches between samples/codewords/pools
+        [b1,b10001] = [binary_code_utilities.Binary_codeword(x) for x in ['1','10001']]
+        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b11],['x','y','z'],['A','B'],5), 
+                                           PlateTransferError, message="Len of codewords and sample_positions mismatch!")
+        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b10,b11],['x','z'],['A','B'],5), 
+                                           PlateTransferError, message="Len of codewords and sample_positions mismatch!")
+        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b10,b1],['x','y','z'],['A','B'],5), 
+                                           PlateTransferError, message="Number of pools and codeword len mismatch!")
+        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b10,b10001],['x','y','z'],['A','B'],5), 
+                                           PlateTransferError, message="Number of pools and codeword len mismatch!")
+        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b10,b11],['x','y','z'],['B'],5), 
+                                           PlateTransferError, message="Number of pools and codeword len mismatch!")
         print("...DONE")
 
     if True:
-        print("Testing get_plate_name_list_from_input function...")
-        assert get_plate_name_list_from_input(4,'A,B,C,D') == ['A','B','C','D']
-        assert get_plate_name_list_from_input(4,'s') == ['s1','s2','s3','s4']
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(4,'A,B,C'),PlateTransferError)
+        print("Testing split_command_list_by_source function...")
+        # if there's only one plate, the result should be a one-item dictionary
+        assert split_command_list_by_source(['p1,A1,x,5','p1,A2,y,5']) == {'p1':['p1,A1,x,5','p1,A2,y,5']}
+        # if there are multiple plates, return one dict per plate
+        assert split_command_list_by_source(['p1,A1,x,5','p2,A1,y,5']) == {'p1':['p1,A1,x,5'], 'p2': ['p2,A1,y,5']}
         print("...DONE")
+
 
 
 ### General functions (not input/output or optparse-related or testing or main), in approximate order of use
 
 def generate_outfile_names(outfile_basename,if_multiple_files,if_mirror_files,number_of_files=None,file_plate_names=None):
-    """ Given the base outfile name, generate full outfile names:
-    If if_multiple_files is false:  X -> (X.txt, [X_Biomek.csv])  (the last two arguments are ignored in this case)
-    Otherwise, something like this:  X -> (X.txt, [X_Biomek_A.csv,X_Biomek_B.csv,...])  
-      (assuming get_plate_name_list_from_input(number_of_files,file_plate_names) returns something like [A,B,...]) """
+    """ Given the base outfile name, generate full outfile names: (general_outfile, Biomek, Biomek_mirror).
+    If if_multiple_files is false:  X -> (X.txt, [X_Biomek.csv], M)  (the last two arguments are ignored in this case)
+    Otherwise, something like this:  X -> (X.txt, [X_Biomek_A.csv,X_Biomek_B.csv,...], M)  
+      (assuming get_plate_name_list_from_input(number_of_files,file_plate_names) returns something like [A,B,...]) 
+    If if_mirror_files is true, Biomek_mirror (M above) is []; otherwise it's the same as Biomek with a _mirror suffix."""
 
     outfile_data = outfile_basename+'.txt'
     if not if_multiple_files:
+        # note: just ignore the last two arguments, they may be inconsistent with a single file, that's FINE. 
         outfiles_Biomek = [outfile_basename+'_Biomek.csv']
     else:
+        if not (number_of_files and file_plate_names):
+            raise PlateTransferError("If outputting multiple Biomek files, must specify number and names!")
         # file_plate_names here can still be a single string or any number of other things - get a list
         file_plate_names = get_plate_name_list_from_input(number_of_files, file_plate_names)
         outfiles_Biomek = [outfile_basename+'_Biomek_'+plate+'.csv' for plate in file_plate_names]
@@ -195,22 +294,29 @@ def generate_outfile_names(outfile_basename,if_multiple_files,if_mirror_files,nu
     else:
         outfiles_Biomek_mirror = [name.replace('_Biomek','_Biomek_mirror') for name in outfiles_Biomek]
     return (outfile_data,outfiles_Biomek,outfiles_Biomek_mirror)
-    # TODO add this to the unit-test!
 
 
 def get_plate_name_list_from_input(N_plates,ID_input):
     """ Return a list of plate names of length N_plates, generated using ID_input. 
     If ID_input is already a correct list, return it.  Otherwise assume it's a string: if splitting it 
-    on commas yields N results, return those; if it yields a single result X, return [X1,X2,...,XN]."""
-    # if we already have a list with the right number of arguments, just return it
-    if isinstance(ID_input,list) and len(ID_input)==N_plates:
+    on commas yields N results, return those; if it yields a single result X, return [X1,X2,...,XN].
+    Note that if N_plates is 1, a count won't be appended: (1,'X') returns ['X'], not ['X1']. """
+    # if we already have a list with the right number of arguments, just return it after checking it makes sense
+    if isinstance(ID_input,list): 
+        if not len(ID_input)==len(set(ID_input)):
+            raise PlateTransferError("You specified a list of plate names with duplicate values! Don't do that.")
+        if not len(ID_input)==N_plates:
+            raise PlateTransferError("Passed a plate name list of wrong length to get_plate_name_list_from_input!")
         return ID_input
-    # otherwise generate list from string
+    # otherwise generate list from string:
     split_IDs = ID_input.split(',')
+    # either it's a comma-separated 'list' of plate names, of correct length, and should be treated as above
+    #  (testing for len==N_plates first: (1,'X') returns ['X'], not ['X1'] - easier, since (1,['X']) returns ['X'] too.)
     if len(split_IDs) == N_plates:  
         if not len(split_IDs)==len(set(split_IDs)):
             raise PlateTransferError("You specified a list of plate names with duplicate values! Don't do that.")
         return split_IDs
+    # or it's a single plate name and sequential numbers should be appended to it to get the list.
     elif len(split_IDs) == 1:
         return ['%s%d'%(ID_input,n+1) for n in range(N_plates)]
     else:
@@ -268,7 +374,6 @@ def assign_codewords(N_samples, N_pools, binary_code):
     # pick the required number of codewords
     sample_codewords = codewords[:N_samples]
     return sample_codewords
-    # TODO add this to the unit-test!
 
 
 def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions, volume):
@@ -285,9 +390,14 @@ def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions
     Biomek command list format:  a list of strings of the form "plateA,wellA,plateX,wellX,volume" 
     where "plateA,wellA" is the value of sample_positions[A], and "plateX,wellX" is pool_positions[X]. """
 
-    Biomek_file_commands = []
+    # make sure the inputs make sense
+    if not len(sample_codewords)==len(sample_positions):
+        raise PlateTransferError("The number of sample positions doesn't match the number of codewords!")
     if not set([len(x) for x in sample_codewords]) == set([len(pool_positions)]):
         raise PlateTransferError("Not all codeword lentgths match the number of pools *%s)!"%len(pool_positions))
+        # note that the second set is always of size 1, so this implicitly makes sure all codewords are the same length
+
+    Biomek_file_commands = []
     for (sample_number, (sample_codeword, sample_position)) in enumerate(zip(sample_codewords,sample_positions)):
         pools_to_add_sample_to = [pool_number for (pool_number,if_add) in enumerate(sample_codeword.list()) if if_add==1]
         for pool_number in pools_to_add_sample_to:
@@ -302,7 +412,6 @@ def split_command_list_by_source(Biomek_file_commands):
         source_plate = line.split(',')[0]
         data_dict[source_plate].append(line)
     return data_dict
-    # TODO add this to the unit-test!
 
 
 ### Input/output functions - no need/ability to unit-test, all the complicated functionality should be elsewhere.
