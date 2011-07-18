@@ -370,6 +370,7 @@ def assign_codewords(N_samples, N_pools, binary_code):
     # make the codewords into a sorted list, to guarantee the result is always the same
     codewords = sorted(binary_code.codewords)
     # we may as well do something useful here - remove the codewords with highest weight, to avoid issues like the all-one codeword and generally to limit the number of samples per pool.  MAYBE-TODO pick another way?  Make it an option?
+    # note that assuming the codes are in normal-form to start with, they'll contain the all-zero codeword (or at least contained it before further selection), so if the min.distance is 6, all codewords will have at least 6 ones - good.
     codewords.sort(key = lambda codeword: codeword.weight())
     # pick the required number of codewords
     sample_codewords = codewords[:N_samples]
@@ -402,6 +403,7 @@ def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions
         pools_to_add_sample_to = [pool_number for (pool_number,if_add) in enumerate(sample_codeword.list()) if if_add==1]
         for pool_number in pools_to_add_sample_to:
             Biomek_file_commands.append("%s,%s,%s"%(sample_position,pool_positions[pool_number],volume))
+    # MAYBE-TODO might be nice to have info printed about the highest number of pools per sample and samples per pool, to help with volume calculations... And also the total number of transfers (maybe divided by 96) to figure out how many tip boxes will be needed
     return Biomek_file_commands
 
 
@@ -475,6 +477,7 @@ def write_data_to_outfile(sample_codewords, sample_positions, pool_positions,
     OUTFILE.write("\npool_number,\tplate_and_well_position\n")
     for (number,position) in enumerate(pool_positions):
         OUTFILE.write("%s,\t%s\n"%(number,position))
+    # MAYBE-TODO print the mirror destination plate positions as well?
     OUTFILE.close()
 
 
@@ -618,6 +621,7 @@ if __name__=='__main__':
                        "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test3"]
     # MAYBE-TODO the -C option values above will only work if we're in the directory where the script is - fix that?
     # MAYBE-TODO add name/description strings to the test cases?
+    # MAYBE-TODO make the outputs go into a test_outputs folder? Make that folder if doesn't exist? Allow the folder name to be given as an option?
     if test_run:
         print("*** You used the -T option - ignoring all other options and running the built-in example test runs.")
         for test_input in test_run_inputs:
