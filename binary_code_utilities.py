@@ -86,10 +86,10 @@ class Binary_codeword:
         #   If I implement __cmp__ but not __hash__, the objects are considered unhashable, because otherwise
         #     there can be cases where x==y but hash(x)!=hash(y), which is BAD for hashing.  
         #   See http://docs.python.org/reference/datamodel.html#object.__hash__ for more on this.
-        #   TODO really, in order to make this absolutely right, I should make sure the bitstrings are immutable...
-        # TODO is string comparison really what I want here?  How about when the lengths are different? Should bitstrings
-        #   with different lengths even be comparable?  I suppose they should just so I can sort stuff and get 
-        #   a consistent result. Possibly just sorting by length first would be better, but it doesn't matter much.
+        # MAYBE-TODO really, in order to make this absolutely right, I should make sure the bitstrings are immutable...
+        # MAYBE-TODO is string comparison really what I want here?  How about when the lengths are different? Should 
+        #   bitstrings with different lengths even be comparable?  I suppose they should just so I can sort stuff and 
+        #   get a consistent result. Possibly just sorting by length first would be better, but it doesn't matter much.
         #   As long as identity works correctly and there's SOME sensible sorting, we're fine.
         return cmp(self.string(),other.string())
 
@@ -110,7 +110,7 @@ def Hamming_distance(val1,val2):
 
 ### Binary code (set of binary strings) representation
 
-# TODO figure out a naming that won't confuse people!  (Or me!)  Mathematically a "code" is a set of codewords (or a method of encoding things), but IRL a "code" can be either a method of encoding things or just a string, so code/codeword is confusing and even I'm using them wrong!
+# MAYBE-TODO figure out a naming that won't confuse people!  (Or me!)  Mathematically a "code" is a set of codewords (or a method of encoding things), but IRL a "code" can be either a method of encoding things or just a string, so code/codeword is confusing and even I'm using them wrong!
 
 class Binary_code:
     """ Essentially a set of Binary_codeword objects, all of the same length."""
@@ -177,9 +177,10 @@ class Binary_code:
 
     def write_code_to_file(self,outfile):
         """ Write all the codewords (in arbitrary order) to a plaintext file of 0/1 strings (one per line). """
+        OUTFILE = open(outfile,'w')
         for codeword in self.codewords:
-            outfile.write(codeword.string()+'\n')
-        # TODO actually write a code to a file (preferably one we'll use), test writing and reading!
+            OUTFILE.write(codeword.string()+'\n')
+        OUTFILE.close()
 
     def get_code_from_generator_matrix(self,generator_file=None,generator_matrix=None,expected_count=0):
         """ Given either a generator matrix (as a numpy array) or a plaintext file containing the matrix, 
@@ -206,10 +207,16 @@ class Binary_code:
             x = Binary_codeword(x,length=input_code_length).list()
             self.add(dot(x,generator_matrix)%2)
 
-    # TODO I could make one or both of these be the initialization signature instead, but who cares
-    # TODO could add the minimum Hamming distance to this?
-    def __str__(self):  return "<Binary_code instance of length %s and size %s>"%(self.length,self.size())
-    def __repr__(self): return "<Binary_code instance of length %s and size %s>"%(self.length,self.size())
+    # MAYBE-TODO I could make one or both of these be the initialization signature instead, but who cares
+    # MAYBE-TODO could add the minimum Hamming distance to this?
+    def __str__(self):      return "<Binary_code instance of length %s and size %s>"%(self.length,self.size())
+    def __repr__(self):     return "<Binary_code instance of length %s and size %s>"%(self.length,self.size())
+
+    # Implementing eq, ne and hashing based on codeword sets; no ge/le comparison (you can't sort sets)
+    # NOTE: comparison and hashing are related and need to match!  See notes in Binary_codeword.
+    def __eq__(self,other):     return self.codewords == other.codewords
+    def __ne__(self,other):     return self.codewords != other.codewords
+    def __hash__(self):         return hash(self.codewords)
 
     def find_Hamming_distance_range(self):
         """ Return a tuple containing the lowest and highest Hamming distance between all codeword pairs."""
@@ -261,9 +268,9 @@ class Binary_code:
     def reduce_by_Hamming_distance(self,low,high,min_count):
         """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-hig range. """
         pass
-        # TODO implement using clique_find.py
+        # MAYBE-TODO implement using clique_find.py
 
-    # (TODO will also need to implement reduce_to_number on Binary_code, for when the code size is 1024 but we only want 700 or something - how should the codewords to use be picked?  By lower or higher weight, or whichever weight is more extreme?  Also remember to remove the all-zero codeword, or invert the code to get rid of it if we need exactly 2**k samples!)
+    # TODO will also need to implement reduce_to_number on Binary_code, for when the code size is 1024 but we only want 700 or something - how should the codewords to use be picked?  By lower or higher weight, or whichever weight is more extreme?  Also remember to remove the all-zero codeword, or invert the code to get rid of it if we need exactly 2**k samples!
 
 
 if __name__=='__main__':
@@ -419,17 +426,23 @@ if __name__=='__main__':
         except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
         else:                   raise BinaryCodeError("Binary_code creation length-check didn't work!")
 
-        # check creation from matrix generator file
+        # check creation from matrix generator file (which also checks generation from a matrix object, right?)
         infile1 = 'error-correcting_codes/19-10-5_generator'
         try:            B19 = Binary_code(19,val=infile1,method='matrixfile',expected_count=2**10)
-        except IOError: sys.exit("Couldn't find input file %s to run matrix generator test."%infile1)
+        except IOError: sys.exit("Couldn't find input file %s to run matrix file test."%infile1)
         assert B19.find_bit_sum_counts() == [(0,1), (5,30), (6,64), (7,90), (8,150), (9,180), (10,168), (11,156), (12,104), (13,46), (14,24), (15,10), (16,1)]
         B20 = B19.add_parity_bit()
+        assert B20.size() == 2**10
+        assert B20.length == 20
         assert B20.find_bit_sum_counts() == [(0, 1), (6, 94), (8, 240), (10, 348), (12, 260), (14, 70), (16, 11)]
-        # could also check Hamming distances, but those take a long time!
+        # could also check Hamming distances, but those take a long time
         #assert B19.find_Hamming_distance_range() == (5,16)
         #assert B20.find_Hamming_distance_range() == (6,16)
 
-        # TODO check creation from code list file?  I don't have one right now - could get rid of that option, or else add a print_to_file method, use that on one of the other codes and then test reading that in.  Or just not test it - it's just reading a file, after all.
+        # check creation from code list file
+        infile2 = 'error-correcting_codes/20-10-6_list'
+        try:            B20_new = Binary_code(20,val=infile2,method='listfile',expected_count=2**10)
+        except IOError: sys.exit("Couldn't find input file %s to run list file test."%infile2)
+        assert B20_new == B20
 
         print "...DONE"
