@@ -86,11 +86,11 @@ class Binary_codeword:
         #   If I implement __cmp__ but not __hash__, the objects are considered unhashable, because otherwise
         #     there can be cases where x==y but hash(x)!=hash(y), which is BAD for hashing.  
         #   See http://docs.python.org/reference/datamodel.html#object.__hash__ for more on this.
-        # MAYBE-TODO really, in order to make this absolutely right, I should make sure the bitstrings are immutable...
+        # MAYBE-TODO in order to make this absolutely right, I should make sure the bitstrings are immutable... How?
         # MAYBE-TODO is string comparison really what I want here?  How about when the lengths are different? Should 
         #   bitstrings with different lengths even be comparable?  I suppose they should just so I can sort stuff and 
         #   get a consistent result. Possibly just sorting by length first would be better, but it doesn't matter much.
-        #   As long as identity works correctly and there's SOME sensible sorting, we're fine.
+        #   As long as identity works correctly and there's SOME reproducible sorting, we're fine.
         return cmp(self.string(),other.string())
 
     def __hash__(self):
@@ -261,16 +261,30 @@ class Binary_code:
         return new_code
 
     def choose_by_bit_sum(self,low,high):
-        """ Remove all codewords with bit sums outside the low-high range."""
-        pass
-        # TODO implement
+        """ Remove all codewords with bit sums outside the low-high range. If high is -1, don't apply an upper bound. """
+        if high==-1:    high = self.find_bit_sum_counts()[-1][0]
+        new_codewords = set()
+        for codeword in self.codewords:
+            if low <= codeword.weight() <= high:  new_codewords.add(codeword)
+        self.codewords = new_codewords
+
+    def reduce_to_N_by_bit_sum(self,N,remove_low=False):
+        """ Reduce codeword set to size N, removing ones with highest or lowest bit sums depending on second argument. 
+        Raise an error if N is higher than current code size.  Don't return anything. """
+        if N>self.size():
+            raise BinaryCodeError("Cannot reduce the code to %s elements, it's already only %s!"%(N,self.size()))
+        # Grab the codewords as a list; Sort normally (i.e. by string) just to make sure the result is reproducible.
+        old_codewords = sorted(list(self.codewords))
+        # Sort the codewords by weight and then take the first N:
+        #  if remove_low is False, we want to remove the high ones, so sort normal so we take the first/lowest ones; 
+        #  if remove_low is True, we want to remove the low ones, so sort reverse, so we take the first/highest ones.
+        old_codewords.sort(key = lambda codeword: codeword.weight(), reverse=remove_low)
+        self.codewords = set(old_codewords[:N])
 
     def reduce_by_Hamming_distance(self,low,high,min_count):
         """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-hig range. """
         pass
         # MAYBE-TODO implement using clique_find.py
-
-    # TODO will also need to implement reduce_to_number on Binary_code, for when the code size is 1024 but we only want 700 or something - how should the codewords to use be picked?  By lower or higher weight, or whichever weight is more extreme?  Also remember to remove the all-zero codeword, or invert the code to get rid of it if we need exactly 2**k samples!
 
 
 if __name__=='__main__':
@@ -401,6 +415,63 @@ if __name__=='__main__':
         assert E.find_bit_sum_counts() == [(0,1), (2,3)]
         assert E.total_bit_sum() == D.total_bit_sum() + 2
 
+        # choose_by_bit_sum
+        D = Binary_code(2,['11','10','01','00'])
+        assert D.length == 2
+        assert D.size() == 4
+        assert D.find_Hamming_distance_range() == (1,2)
+        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
+        assert D.total_bit_sum() == 4
+        D_ = Binary_code(2,['11','10','01','00'])
+        D_.choose_by_bit_sum(0,2)
+        assert D_ == D
+        D_ = Binary_code(2,['11','10','01','00'])
+        D_.choose_by_bit_sum(0,0)
+        assert D_.size() == 1
+        assert D_.find_bit_sum_counts() == [(0,1)]
+        D_ = Binary_code(2,['11','10','01','00'])
+        D_.choose_by_bit_sum(0,1)
+        assert D_.size() == 3
+        assert D_.find_bit_sum_counts() == [(0,1),(1,2)]
+        D_ = Binary_code(2,['11','10','01','00'])
+        D_.choose_by_bit_sum(1,2)
+        assert D_.size() == 3
+        assert D_.find_bit_sum_counts() == [(1,2),(2,1)]
+        D_ = Binary_code(2,['11','10','01','00'])
+        D_.choose_by_bit_sum(1,1)
+        assert D_.size() == 2
+        assert D_.find_bit_sum_counts() == [(1,2)]
+        D_ = Binary_code(2,['11','10','01','00'])
+        D_.choose_by_bit_sum(0,-1)
+        assert D_ == D
+        E = Binary_code(2,['11','00'])
+        E.choose_by_bit_sum(1,1)
+        assert E.size() == 0
+
+        # reduce_to_N_by_bit_sum
+        D = Binary_code(2,['11','10','01','00'])
+        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
+        D.reduce_to_N_by_bit_sum(4,False)
+        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
+        D.reduce_to_N_by_bit_sum(4,True)
+        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
+        D = Binary_code(2,['11','10','01','00'])
+        D.reduce_to_N_by_bit_sum(3,False)
+        assert D.find_bit_sum_counts() == [(0,1), (1,2)]
+        D = Binary_code(2,['11','10','01','00'])
+        D.reduce_to_N_by_bit_sum(3,True)
+        assert D.find_bit_sum_counts() == [(1,2), (2,1)]
+        D = Binary_code(2,['11','10','01','00'])
+        D.reduce_to_N_by_bit_sum(1,False)
+        assert D.find_bit_sum_counts() == [(0,1)]
+        D = Binary_code(2,['11','10','01','00'])
+        D.reduce_to_N_by_bit_sum(1,True)
+        assert D.find_bit_sum_counts() == [(2,1)]
+        try:                    D.reduce_to_N_by_bit_sum(5,False)
+        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
+        else:                   raise BinaryCodeError("Testing error!")
+
+        ### Creation from file, generator matrix etc
         # check that creation fails if the length is wrong
         try:                    B = Binary_code(4,['110','101','011','000'])
         except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
