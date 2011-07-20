@@ -219,12 +219,16 @@ def test_functionality():
         assert set(assign_codewords(2,2,B_with_00)).issubset(set(b_list_without_00))
         assert set(assign_codewords(1,2,B_with_00)).issubset(set(b_list_without_00))
         # the words are sorted first lexicographically, and then by weight (number of 1s)
-        assert assign_codewords(3,2,B_without_00) == [b01,b10,b11]
-        assert assign_codewords(2,2,B_without_00) == [b01,b10]
-        assert assign_codewords(1,2,B_without_00) == [b01]
-        assert assign_codewords(3,5,B_longer) == [b10000,b10001,b01111]
-        assert assign_codewords(2,5,B_longer) == [b10000,b10001]
-        assert assign_codewords(1,5,B_longer) == [b10000]
+        assert set(assign_codewords(1,2,B_without_00)) == set([b01])
+        # TODO this is a problem - I think we need reduce_to_N_by_bit_sum to RETURN a new sorted list instead of reducing the existing code, or else I'll have to make a new code for each test and things are annoyingly mutable...  Or else make assign_codewords make a COPY of the binary_code instead of modifying its argument.  I'd like it to NOT modify its argument. Or if it does, make that very clear from the docstring.
+        print B_without_00.codewords
+        s = set(assign_codewords(2,2,B_without_00))
+        print s
+        assert (s == set([b01,b10]) or s == set([b01,b10]))
+        assert set(assign_codewords(3,2,B_without_00)) == set([b01,b10,b11])
+        assert set(assign_codewords(1,5,B_longer)) == set([b10000])
+        assert set(assign_codewords(2,5,B_longer)) == set([b10000,b10001])
+        assert set(assign_codewords(3,5,B_longer)) == set([b10000,b10001,b01111])
         # should fail when the number of samples or pools doesn't match
         testing_utilities.call_should_fail(assign_codewords,(4,2,B_without_00), PlateTransferError, 
                                            message="Should be too many samples for given code!")
@@ -349,7 +353,7 @@ def numbers_to_plate_and_well_IDs(N_samples, plate_size, N_plates, plate_IDs):
     return position_list
 
 
-def assign_codewords(N_samples, N_pools, binary_code):
+def assign_codewords(N_samples, N_pools, binary_code, remove_low=False):
     """ Return a list of Binary_codeword objects, of length N_samples - one codeword per sample, ordered. """
 
     if not N_pools == binary_code.length:
@@ -367,14 +371,12 @@ def assign_codewords(N_samples, N_pools, binary_code):
         print("Warning: N_samples is lower than the size of the provided binary code - an arbitrary subset of codewords "
               + "will be used.  You may want to reduce your code size manually for improved attributes.")
 
-    # make the codewords into a sorted list, to guarantee the result is always the same
-    codewords = sorted(binary_code.codewords)
-    # we may as well do something useful here - remove the codewords with highest weight, to avoid issues like the all-one codeword and generally to limit the number of samples per pool.  MAYBE-TODO pick another way?  Make it an option?
-    # note that assuming the codes are in normal-form to start with, they'll contain the all-zero codeword (or at least contained it before further selection), so if the min.distance is 6, all codewords will have at least 6 ones - good.
-    codewords.sort(key = lambda codeword: codeword.weight())
-    # pick the required number of codewords
-    sample_codewords = codewords[:N_samples]
-    return sample_codewords
+    # reduce the binary code to the desired number of samples 
+    #  (removing either the low-weight or high-weight depending on the remove_low argument value)
+    binary_code.reduce_to_N_by_bit_sum(N_samples,remove_low=remove_low)
+    # simply return a list of the codewords, in arbitrary order 
+    #   (don't sort here, even though it's more convenient for testing, becauase I may want to change the sorting order!)
+    return list(binary_code.codewords)
 
 
 def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions, volume):
