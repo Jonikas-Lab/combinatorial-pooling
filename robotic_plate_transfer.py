@@ -207,36 +207,77 @@ def test_functionality():
         [b01111,b10000,b10001] = [binary_code_utilities.Binary_codeword(x) for x in ['01111','10000','10001']]
         b_list_longer = [b01111,b10000,b10001]
         B_longer = binary_code_utilities.Binary_code(5,b_list_longer)
-        # first check that the result is a subset of the expected set - don't check the ordering
-        assert set(assign_codewords(3,2,B_without_00)) == set(b_list_without_00)
-        assert set(assign_codewords(2,2,B_without_00)).issubset(set(b_list_without_00))
-        assert set(assign_codewords(1,2,B_without_00)).issubset(set(b_list_without_00))
-        assert set(assign_codewords(3,5,B_longer)) == set(b_list_longer)
-        assert set(assign_codewords(2,5,B_longer)).issubset(set(b_list_longer))
-        assert set(assign_codewords(1,5,B_longer)).issubset(set(b_list_longer))
-        # the all-zero codeword should always be thrown away
-        assert set(assign_codewords(3,2,B_with_00)) == set(b_list_without_00)
-        assert set(assign_codewords(2,2,B_with_00)).issubset(set(b_list_without_00))
-        assert set(assign_codewords(1,2,B_with_00)).issubset(set(b_list_without_00))
-        # the words are sorted first lexicographically, and then by weight (number of 1s)
-        assert set(assign_codewords(1,2,B_without_00)) == set([b01])
-        # TODO this is a problem - I think we need reduce_to_N_by_bit_sum to RETURN a new sorted list instead of reducing the existing code, or else I'll have to make a new code for each test and things are annoyingly mutable...  Or else make assign_codewords make a COPY of the binary_code instead of modifying its argument.  I'd like it to NOT modify its argument. Or if it does, make that very clear from the docstring.
-        print B_without_00.codewords
-        s = set(assign_codewords(2,2,B_without_00))
-        print s
-        assert (s == set([b01,b10]) or s == set([b01,b10]))
-        assert set(assign_codewords(3,2,B_without_00)) == set([b01,b10,b11])
-        assert set(assign_codewords(1,5,B_longer)) == set([b10000])
-        assert set(assign_codewords(2,5,B_longer)) == set([b10000,b10001])
-        assert set(assign_codewords(3,5,B_longer)) == set([b10000,b10001,b01111])
-        # should fail when the number of samples or pools doesn't match
-        testing_utilities.call_should_fail(assign_codewords,(4,2,B_without_00), PlateTransferError, 
+        # 1. result should be a subset of the expected set and of the expected length (don't check the ordering yet)
+        s = set(assign_codewords(3,2,B_without_00,quiet=True))
+        assert s == set(b_list_without_00) and len(s) == 3
+        s = set(assign_codewords(2,2,B_without_00,quiet=True))
+        assert s.issubset(set(b_list_without_00)) and len(s) == 2
+        s = set(assign_codewords(1,2,B_without_00,quiet=True))
+        assert s.issubset(set(b_list_without_00)) and len(s) == 1
+        s = set(assign_codewords(3,5,B_longer,quiet=True))
+        assert s == set(b_list_longer) and len(s) == 3
+        s = set(assign_codewords(2,5,B_longer,quiet=True))
+        assert s.issubset(set(b_list_longer)) and len(s) == 2
+        s = set(assign_codewords(1,5,B_longer,quiet=True))
+        assert s.issubset(set(b_list_longer)) and len(s) == 1
+        # (same with remove_low set to True)
+        s = set(assign_codewords(3,2,B_without_00,remove_low=True,quiet=True))
+        assert s == set(b_list_without_00) and len(s) == 3
+        s = set(assign_codewords(2,2,B_without_00,remove_low=True,quiet=True))
+        assert s.issubset(set(b_list_without_00)) and len(s) == 2
+        s = set(assign_codewords(1,2,B_without_00,remove_low=True,quiet=True))
+        assert s.issubset(set(b_list_without_00)) and len(s) == 1
+        s = set(assign_codewords(3,5,B_longer,remove_low=True,quiet=True))
+        assert s == set(b_list_longer) and len(s) == 3
+        s = set(assign_codewords(2,5,B_longer,remove_low=True,quiet=True))
+        assert s.issubset(set(b_list_longer)) and len(s) == 2
+        s = set(assign_codewords(1,5,B_longer,remove_low=True,quiet=True))
+        assert s.issubset(set(b_list_longer)) and len(s) == 1
+        # 2. the all-zero codeword should always be thrown away
+        assert b00 not in set(assign_codewords(3,2,B_with_00,quiet=True))
+        assert b00 not in set(assign_codewords(2,2,B_with_00,quiet=True))
+        assert b00 not in set(assign_codewords(1,2,B_with_00,quiet=True))
+        # (same with remove_low set to True)
+        assert b00 not in set(assign_codewords(3,2,B_with_00,remove_low=True,quiet=True))
+        assert b00 not in set(assign_codewords(2,2,B_with_00,remove_low=True,quiet=True))
+        assert b00 not in set(assign_codewords(1,2,B_with_00,remove_low=True,quiet=True))
+        # 3. the words should be sorted by weight, with the low-weight ones taken first
+        #   (assume the order of same-weight words can be arbitrary - test both cases)
+        assert assign_codewords(1,2,B_without_00,quiet=True) in [ [b01], [b10] ]
+        assert assign_codewords(2,2,B_without_00,quiet=True) in [ [b01,b10], [b10,b01] ]
+        assert assign_codewords(3,2,B_without_00,quiet=True) in [ [b01,b10,b11], [b10,b01,b11] ]
+        assert assign_codewords(1,5,B_longer,quiet=True) == [b10000]
+        assert assign_codewords(2,5,B_longer,quiet=True) == [b10000,b10001]
+        assert assign_codewords(3,5,B_longer,quiet=True) == [b10000,b10001,b01111]
+        # if remove_low is set to True, the sorting by weight should be reversed.
+        assert assign_codewords(1,2,B_without_00,remove_low=True,quiet=True) == [b11]
+        assert assign_codewords(2,2,B_without_00,remove_low=True,quiet=True) in [ [b11,b10], [b11,b01] ]
+        assert assign_codewords(3,2,B_without_00,remove_low=True,quiet=True) in [ [b11,b01,b10], [b11,b10,b01] ]
+        assert assign_codewords(1,5,B_longer,remove_low=True,quiet=True) == [b01111]
+        assert assign_codewords(2,5,B_longer,remove_low=True,quiet=True) == [b01111,b10001]
+        assert assign_codewords(3,5,B_longer,remove_low=True,quiet=True) == [b01111,b10001,b10000]
+        # 4. words of the same weight should be sorted lexicographically (but I'm not sure we want to rely on that)
+        assert assign_codewords(3,2,B_without_00,quiet=True) == [b01,b10,b11]
+        assert assign_codewords(3,2,B_without_00,remove_low=True,quiet=True) == [b11,b01,b10]
+        # function should fail when the number of samples or pools doesn't match
+        #   (can't pass arguments by keyword here. The first False/True is remove_low (test both), 
+        #    the second is quiet (always set to True))
+        testing_utilities.call_should_fail(assign_codewords,(4,2,B_without_00,False,True), PlateTransferError, 
                                            message="Should be too many samples for given code!")
-        testing_utilities.call_should_fail(assign_codewords,(4,2,B_with_00), PlateTransferError, 
+        testing_utilities.call_should_fail(assign_codewords,(4,2,B_with_00,False,True), PlateTransferError, 
                                            message="Should be too many samples after '00' removal!")
-        testing_utilities.call_should_fail(assign_codewords,(4,1,B_without_00), PlateTransferError, 
+        testing_utilities.call_should_fail(assign_codewords,(4,1,B_without_00,False,True), PlateTransferError, 
                                            message="Number of pools doesn't match code length!")
-        testing_utilities.call_should_fail(assign_codewords,(4,3,B_without_00), PlateTransferError, 
+        testing_utilities.call_should_fail(assign_codewords,(4,3,B_without_00,False,True), PlateTransferError, 
+                                           message="Number of pools doesn't match code length!")
+        # (same with remove_low set to True)
+        testing_utilities.call_should_fail(assign_codewords,(4,2,B_without_00,True,True), PlateTransferError, 
+                                           message="Should be too many samples for given code!")
+        testing_utilities.call_should_fail(assign_codewords,(4,2,B_with_00,True,True), PlateTransferError, 
+                                           message="Should be too many samples after '00' removal!")
+        testing_utilities.call_should_fail(assign_codewords,(4,1,B_without_00,True,True), PlateTransferError, 
+                                           message="Number of pools doesn't match code length!")
+        testing_utilities.call_should_fail(assign_codewords,(4,3,B_without_00,True,True), PlateTransferError, 
                                            message="Number of pools doesn't match code length!")
         print("...DONE")
 
@@ -353,7 +394,7 @@ def numbers_to_plate_and_well_IDs(N_samples, plate_size, N_plates, plate_IDs):
     return position_list
 
 
-def assign_codewords(N_samples, N_pools, binary_code, remove_low=False):
+def assign_codewords(N_samples, N_pools, binary_code, remove_low=False, quiet=False):
     """ Return a list of Binary_codeword objects, of length N_samples - one codeword per sample, ordered. """
 
     if not N_pools == binary_code.length:
@@ -361,22 +402,21 @@ def assign_codewords(N_samples, N_pools, binary_code, remove_low=False):
     if N_samples > binary_code.size():
         raise PlateTransferError("N_samples cannot exceed the size of the provided binary code!")
     if binary_code.remove_all_zero_codeword():
-        print("Warning: the binary code provided contained the all-zero codeword, which cannot be used, "
-              + "as it would result in a sample being added to none of the pools and thus not sequenced. "
-              + "The all-zero codeword was removed.")
+        if not quiet:
+            print("Warning: the binary code provided contained the all-zero codeword, which cannot be used, "
+                  + "as it would result in a sample being added to none of the pools and thus not sequenced. "
+                  + "The all-zero codeword was removed.")
         if N_samples > binary_code.size():
             raise PlateTransferError("After removing the all-zero codeword, there aren't enough codewords for all "
                                      + "samples! Aborting. You could consider inverting the code to get around this.")
-    if N_samples < binary_code.size():
+    if N_samples < binary_code.size() and not quiet:
         print("Warning: N_samples is lower than the size of the provided binary code - an arbitrary subset of codewords "
               + "will be used.  You may want to reduce your code size manually for improved attributes.")
 
-    # reduce the binary code to the desired number of samples 
+    # get the desired number of samples from the binary code (returns a sorted list, original code is unchanged)
     #  (removing either the low-weight or high-weight depending on the remove_low argument value)
-    binary_code.reduce_to_N_by_bit_sum(N_samples,remove_low=remove_low)
-    # simply return a list of the codewords, in arbitrary order 
-    #   (don't sort here, even though it's more convenient for testing, becauase I may want to change the sorting order!)
-    return list(binary_code.codewords)
+    codeword_list = binary_code.give_N_codeword_list_by_bit_sum(N_samples,remove_low=remove_low)
+    return codeword_list
 
 
 def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions, volume):
@@ -490,6 +530,7 @@ def define_option_parser():
     from optparse import OptionParser
     parser = OptionParser(__doc__)
 
+    parser.add_option('-q','--quiet', action='store_true', default=False, help="Don't print warnings (default False).")
     parser.add_option('-t','--test_functionality', action='store_true', default=False, 
                       help="Run the built-in unit test suite (ignores all other options/arguments; default False).")
     parser.add_option('-T','--test_run', action='store_true', default=False, 
@@ -573,8 +614,9 @@ def run_main_function(parser,options,args):
     (outfile_data, outfiles_Biomek, outfiles_Biomek_mirror) = outfiles
     print("Output files: %s"%(outfiles,))
     # assign codewords to samples
-    sample_codewords = assign_codewords(options.number_of_samples, options.number_of_pools, 
-                                       get_binary_code(options.binary_code_list_file, options.binary_code_generator_file))
+    binary_code = get_binary_code(options.binary_code_list_file, options.binary_code_generator_file)
+    sample_codewords = assign_codewords(options.number_of_samples, options.number_of_pools, binary_code, 
+                                        quiet=options.quiet)
     # generate plate names from strings if they weren't given as lists
     input_plate_names = get_plate_name_list_from_input(options.number_of_sample_plates, options.sample_plate_IDs)
     output_plate_names = get_plate_name_list_from_input(options.number_of_pool_plates, options.pool_plate_IDs)
@@ -618,12 +660,12 @@ if __name__=='__main__':
     # Test run: robotic_plate_transfer.py -n 63 -N 15 -P 3 -i Source1 -C error-correcting_codes/15-6-6_generator test
     # since we'll be redoing the parsing on an example string, the option value will be overwritten, so save it separately
     test_run = options.test_run     
-    test_run_inputs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator test1", 
-                       "-n 63 -N 15 -P 3 -i Source1 -o -M -u _mirror -C error-correcting_codes/15-6-6_generator test2", 
-                       "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test3"]
+    test_run_inputs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator test1 -q", 
+                       "-n 63 -N 15 -P 3 -i Source1 -o -M -u _mirror -C error-correcting_codes/15-6-6_generator test2 -q", 
+                       "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test3 -q"]
     # MAYBE-TODO the -C option values above will only work if we're in the directory where the script is - fix that?
     # MAYBE-TODO add name/description strings to the test cases?
-    # MAYBE-TODO make the outputs go into a test_outputs folder? Make that folder if doesn't exist? Allow the folder name to be given as an option?
+    # MAYBE-TODO make the outputs go into a test_outputs folder instead of polluting the current directory! Make that folder if doesn't exist. Allow the folder name to be given as an option?
     if test_run:
         print("*** You used the -T option - ignoring all other options and running the built-in example test runs.")
         for test_input in test_run_inputs:
@@ -633,7 +675,6 @@ if __name__=='__main__':
             run_main_function(parser,options,args)
         print("*** Test runs finished. If you didn't get any errors, that's good (warnings are all right). "
               + "Check the output files to make sure.")
-        # MAYBE-TODO add a -q option to silence the warnings for testing?
         sys.exit(0)
 
     # If it's not a test run, just run the main functionality

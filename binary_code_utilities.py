@@ -91,6 +91,8 @@ class Binary_codeword:
         #   bitstrings with different lengths even be comparable?  I suppose they should just so I can sort stuff and 
         #   get a consistent result. Possibly just sorting by length first would be better, but it doesn't matter much.
         #   As long as identity works correctly and there's SOME reproducible sorting, we're fine.
+        # MAYBE-TODO should I also implement comparison to strings and such, by doing binary_codeword(other).string()?
+        #   That conversion should probably be taken care of in the function performing the comparison.
         return cmp(self.string(),other.string())
 
     def __hash__(self):
@@ -268,18 +270,19 @@ class Binary_code:
             if low <= codeword.weight() <= high:  new_codewords.add(codeword)
         self.codewords = new_codewords
 
-    def reduce_to_N_by_bit_sum(self,N,remove_low=False):
-        """ Reduce codeword set to size N, removing ones with highest or lowest bit sums depending on second argument. 
-        Raise an error if N is higher than current code size.  Don't return anything. """
+    def give_N_codeword_list_by_bit_sum(self,N,remove_low=False):
+        """ Sort all the codewords by bit sum (depends on remove_low), return the first N as a list.  
+        If remove_low is False (default), we want to remove high-sum codewords, so sort normally and take N first ones.
+        If remove_low is True, we want to remove low-sum codewords, so sort reverse and take N first (highest) ones.
+        Sort by string value first to make sure the result is reproducible (so codewords with the same bit-sum are sorted
+        lexicographically).  Raise an error if N is higher than current code size. """
         if N>self.size():
             raise BinaryCodeError("Cannot reduce the code to %s elements, it's already only %s!"%(N,self.size()))
         # Grab the codewords as a list; Sort normally (i.e. by string) just to make sure the result is reproducible.
-        old_codewords = sorted(list(self.codewords))
-        # Sort the codewords by weight and then take the first N:
-        #  if remove_low is False, we want to remove the high ones, so sort normal so we take the first/lowest ones; 
-        #  if remove_low is True, we want to remove the low ones, so sort reverse, so we take the first/highest ones.
-        old_codewords.sort(key = lambda codeword: codeword.weight(), reverse=remove_low)
-        self.codewords = set(old_codewords[:N])
+        codewords = sorted(list(self.codewords))
+        # Sort the codewords by weight and then take the first N (see docstring)
+        codewords.sort(key = lambda codeword: codeword.weight(), reverse=remove_low)
+        return codewords[:N]
 
     def reduce_by_Hamming_distance(self,low,high,min_count):
         """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-hig range. """
@@ -448,26 +451,31 @@ if __name__=='__main__':
         E.choose_by_bit_sum(1,1)
         assert E.size() == 0
 
-        # reduce_to_N_by_bit_sum
+        ### give_N_codeword_list_by_bit_sum
         D = Binary_code(2,['11','10','01','00'])
         assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
-        D.reduce_to_N_by_bit_sum(4,False)
-        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
-        D.reduce_to_N_by_bit_sum(4,True)
-        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
-        D = Binary_code(2,['11','10','01','00'])
-        D.reduce_to_N_by_bit_sum(3,False)
-        assert D.find_bit_sum_counts() == [(0,1), (1,2)]
-        D = Binary_code(2,['11','10','01','00'])
-        D.reduce_to_N_by_bit_sum(3,True)
-        assert D.find_bit_sum_counts() == [(1,2), (2,1)]
-        D = Binary_code(2,['11','10','01','00'])
-        D.reduce_to_N_by_bit_sum(1,False)
-        assert D.find_bit_sum_counts() == [(0,1)]
-        D = Binary_code(2,['11','10','01','00'])
-        D.reduce_to_N_by_bit_sum(1,True)
-        assert D.find_bit_sum_counts() == [(2,1)]
-        try:                    D.reduce_to_N_by_bit_sum(5,False)
+        # check that the highest (or lowest) bit-sum elements are removed first (the True/False argument is remove_low)
+        #   (returns a Binary_codeword list, so make a Binary_code from it again to check bit sum counts)
+        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(4,False)).find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
+        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(4,True)).find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
+        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(3,False)).find_bit_sum_counts() == [(0,1), (1,2)]
+        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(3,True)).find_bit_sum_counts() == [(1,2), (2,1)]
+        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(2,False)).find_bit_sum_counts() == [(0,1), (1,1)]
+        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(2,True)).find_bit_sum_counts() == [(1,1), (2,1)]
+        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(1,False)).find_bit_sum_counts() == [(0,1)]
+        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(1,True)).find_bit_sum_counts() == [(2,1)]
+        # check the exact ordering of returned elements (sorted by bit sum, equal bit sum sorted lexicographically)
+        [b01,b10,b11,b00] = [Binary_codeword(x) for x in ['01','10','11','00']]
+        assert D.give_N_codeword_list_by_bit_sum(4,False) == [b00,b01,b10,b11]
+        assert D.give_N_codeword_list_by_bit_sum(4,True) == [b11,b01,b10,b00]
+        assert D.give_N_codeword_list_by_bit_sum(3,False) == [b00,b01,b10]
+        assert D.give_N_codeword_list_by_bit_sum(3,True) == [b11,b01,b10]
+        assert D.give_N_codeword_list_by_bit_sum(2,False) == [b00,b01]
+        assert D.give_N_codeword_list_by_bit_sum(2,True) == [b11,b01]
+        assert D.give_N_codeword_list_by_bit_sum(1,False) == [b00]
+        assert D.give_N_codeword_list_by_bit_sum(1,True) == [b11]
+        # check that it's impossible to get 5 elements from a 4-element binary code
+        try:                    D.give_N_codeword_list_by_bit_sum(5,False)
         except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
         else:                   raise BinaryCodeError("Testing error!")
 
