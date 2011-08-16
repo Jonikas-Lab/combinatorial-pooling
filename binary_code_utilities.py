@@ -3,10 +3,12 @@
 Various utilities for dealing with binary codes: representation, reading from a file, calculating the bit sum, Hamming distances, comparing values within sets, etc.  See individual function docstrings for details.
 """
 
+import sys
 from collections import defaultdict
 from itertools import combinations
 from numpy import array, dot
 import bitstring
+import unittest
 
 class BinaryCodeError(Exception):
     """ Exceptions in the binary_code_utilities module."""
@@ -289,113 +291,124 @@ class Binary_code:
         pass
         # MAYBE-TODO implement using clique_find.py
 
+class Testing_Binary_codeword(unittest.TestCase):
+    """ Testing Binary_codeword functionality. """
 
-if __name__=='__main__':
-    """ If module is run directly, run tests. """
-    import sys
+    def test_creation_value_types(self):
+        """ Test Binary_codeword instance initiation with different value types (string, int, list, Binary_codeword) """
+        self.assertEqual(Binary_codeword('111').string(), '111')
+        self.assertEqual(Binary_codeword(7).string(), '111')
+        self.assertEqual(Binary_codeword('0b 111\n').string(), '111')
+        self.assertEqual(Binary_codeword([True,True,True]).string(), '111')
+        self.assertEqual(Binary_codeword(Binary_codeword('111')).string(), '111')
 
-    ### Binary_codeword tests
-    if True:
-        print "Testing Binary_codeword functionality..."
-
-        # creation with different value types
-        assert Binary_codeword('111').string() == '111'
-        assert Binary_codeword(7).string() == '111'
-        assert Binary_codeword('0b 111\n').string() == '111'
-        assert Binary_codeword([True,True,True]).string() == '111'
-        assert Binary_codeword(Binary_codeword('111')).string() == '111'
-
-        # initiation length-checks/padding: 
-        #   '111' has length 3, should work
+    def test_initiation_length_check_and_padding(self):
+        """ Test if Binary_codeword initiation deals with codeword length correctly (length check and padding). """
+        #   '111' has length 3, should work (no assert, just making sure it doesn't raise an exception)
         Binary_codeword('111',3,check_length=True)
         #   '111' doesn't have length 5, should raise an error
-        try:                    Binary_codeword('111',5,check_length=True)
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Binary_codeword initiation length-check didn't work!")
+        self.assertRaises(BinaryCodeError, Binary_codeword, '111', 5, check_length=True)
         #   padding a length-3 string to the same length shouldn't change anything
-        assert Binary_codeword('111',3) == Binary_codeword('111')
+        self.assertEqual(Binary_codeword('111',3), Binary_codeword('111'))
         #   padding a length-3 string to a higher length should work
-        assert Binary_codeword(7,4).string() == '0111'
-        assert Binary_codeword('111',5).string() == '00111'
+        self.assertEqual(Binary_codeword(7,4).string(), '0111')
+        self.assertEqual(Binary_codeword('111',5).string(), '00111')
         #   padding a length-3 string to length 2 should raise an error
-        try:                    Binary_codeword('111',2)
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Binary_codeword initiation length-check didn't work!")
+        self.assertRaises(BinaryCodeError, Binary_codeword, '111', 2)
 
-        # equality and comparison
-        assert Binary_codeword('111') == Binary_codeword('111')
-        assert Binary_codeword('111') != Binary_codeword('101')
-        assert Binary_codeword('111') != Binary_codeword('1110')
-        assert Binary_codeword('111') != Binary_codeword('0111')
-        assert Binary_codeword('101') < Binary_codeword('111')
-        # bitwise operations
-        assert ~Binary_codeword('000') == Binary_codeword('111')
-        assert Binary_codeword('110') | Binary_codeword('011') == Binary_codeword('111')
-        assert Binary_codeword('110') & Binary_codeword('011') == Binary_codeword('010')
-        assert Binary_codeword('110') ^ Binary_codeword('011') == Binary_codeword('101')
-        # length
-        assert len(Binary_codeword('111')) == 3
-        assert len(Binary_codeword('00000')) == 5
-        # weight
-        assert Binary_codeword('111').weight() == 3
-        assert Binary_codeword('001').weight() == 1
-        assert Binary_codeword('00000').weight() == 0
-        # string and list representations
-        assert Binary_codeword('111').string() == '111'
-        assert Binary_codeword('111').list() == [1,1,1]
-        
-        # Hamming distance
-        assert Hamming_distance(Binary_codeword('000'),Binary_codeword('000')) == 0
-        assert Hamming_distance(Binary_codeword('111'),Binary_codeword('000')) == 3
-        assert Hamming_distance(Binary_codeword('101'),Binary_codeword('000')) == 2
-        assert Hamming_distance(Binary_codeword('101'),Binary_codeword('010')) == 3
+    def test_equality_and_comparison_operators(self):
+        self.assertTrue(Binary_codeword('111') == Binary_codeword('111'))
+        self.assertTrue(Binary_codeword('111') != Binary_codeword('101'))
+        self.assertTrue(Binary_codeword('111') != Binary_codeword('1110'))
+        self.assertTrue(Binary_codeword('111') != Binary_codeword('0111'))
+        self.assertTrue(Binary_codeword('101') < Binary_codeword('111'))
+
+    def test_bitwise_operations(self):
+        self.assertEqual(~Binary_codeword('000'), Binary_codeword('111'))
+        self.assertEqual(Binary_codeword('110') | Binary_codeword('011'), Binary_codeword('111'))
+        self.assertEqual(Binary_codeword('110') & Binary_codeword('011'), Binary_codeword('010'))
+        self.assertEqual(Binary_codeword('110') ^ Binary_codeword('011'), Binary_codeword('101'))
         # comparing bitstrings of different lengths should fail
-        try:               Hamming_distance(Binary_codeword('000'),Binary_codeword('0000'))
-        except ValueError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:              raise BinaryCodeError("Hamming distance between Binary_codewords of different lengths worked!")
+        self.assertRaises(ValueError, Hamming_distance, Binary_codeword('000'), Binary_codeword('0000'))
 
-        print "...DONE"
+    def test_length_calculation(self):
+        self.assertEqual(len(Binary_codeword('111')), 3)
+        self.assertEqual(len(Binary_codeword('00000')), 5)
 
-    ### Binary_code tests
-    if True:
-        print "Testing Binary_code functionality..."
+    def test_weight_calculation(self):
+        self.assertEqual(Binary_codeword('111').weight(), 3)
+        self.assertEqual(Binary_codeword('001').weight(), 1)
+        self.assertEqual(Binary_codeword('00000').weight(), 0)
 
-        # basic creation from a list and all the properties
+    def test_list_string_representations(self):
+        self.assertEqual(Binary_codeword('111').string(), '111')
+        self.assertEqual(Binary_codeword('111').list(), [1,1,1])
+
+    def test_Hamming_distance_calculation(self):
+        self.assertEqual(Hamming_distance(Binary_codeword('000'),Binary_codeword('000')), 0)
+        self.assertEqual(Hamming_distance(Binary_codeword('111'),Binary_codeword('000')), 3)
+        self.assertEqual(Hamming_distance(Binary_codeword('101'),Binary_codeword('000')), 2)
+        self.assertEqual(Hamming_distance(Binary_codeword('101'),Binary_codeword('010')), 3)
+
+
+class Testing_Binary_code(unittest.TestCase):
+    """ Testing Binary_code functionality. """
+
+    # MAYBE-TODO convert all the assert statements to self.assertEqual or self.assertTrue or such? 
+    #   That's the way unittest functions should be written, but the current version works too...
+
+    def test_creation_from_list_and_properties(self):
         B = Binary_code(3,['110','101','011','000'])
         assert B.length == 3
         assert B.size() == 4
         assert B.find_Hamming_distance_range() == (2,2)
         assert B.find_bit_sum_counts() == [(0,1), (2,3)]
         assert B.total_bit_sum() == 6
+        # check that creation fails if the length is wrong
+        self.assertRaises(BinaryCodeError, Binary_code, 4, ['110','101','011','000'])
+        # check that creation fails if the expected count is wrong
+        self.assertRaises(BinaryCodeError, Binary_code, 3, ['110','101','011','000'], expected_count=5)
+        # check that creation fails with inexistent method keyword
+        self.assertRaises(BinaryCodeError, Binary_code, 4, ['110','101','011','000'], method='random')
 
-        # adding and removing a codeword
+    def test_codeword_add_remove(self):
         B = Binary_code(3,['110','101','011','000'])
         C = Binary_code(3,B.codewords)
+        # add an element, verify that the Binary_code properties are correct
         C.add('111')
         assert C.length == B.length
         assert C.size() == B.size() + 1
         assert C.find_Hamming_distance_range() == (1,3)
         assert C.find_bit_sum_counts() == B.find_bit_sum_counts() + [(3,1)]
         assert C.total_bit_sum() == B.total_bit_sum() + 3
+        # remove an element, verify that the Binary_code properties are correct
         C.remove('110')
         assert C.length == B.length
         assert C.size() == B.size()
         assert C.find_Hamming_distance_range() == (1,3)
         assert C.find_bit_sum_counts() == [(0,1), (2,2), (3,1)]
         assert C.total_bit_sum() == B.total_bit_sum() + 3 - 2
+        # remove should fail if the element wasn't there
+        self.assertRaises(BinaryCodeError, B.remove, '111')
+        # add/remove should fail if the length is wrong
+        self.assertRaises(BinaryCodeError, B.add, '1111')
+        self.assertRaises(BinaryCodeError, B.remove, '1111')
 
-        # removing the all-zero codeword should return 1 if it was there and 0 if it wasn't, and never fail
+    def test_remove_all_zero_codeword(self):
+        B = Binary_code(3,['111','101','011','000'])
+        C = Binary_code(3,B.codewords)
         assert C.remove_all_zero_codeword() == 1
         assert C.length == B.length
         assert C.size() == B.size() - 1
         assert C.find_Hamming_distance_range() == (1,2)
         assert C.find_bit_sum_counts() == [(2,2), (3,1)]
-        assert C.total_bit_sum() == B.total_bit_sum() + 3 - 2
+        assert C.total_bit_sum() == B.total_bit_sum()
+        # try removing the all-zero codeword again - should have no effect
         assert C.remove_all_zero_codeword() == 0
         assert C.length == B.length
         assert C.size() == B.size() - 1
 
-        # inversion
+    def test_codeword_inversion(self):
         B = Binary_code(3,['110','101','011','000'])
         B_ = B.invert()
         assert B_.length == B.length
@@ -404,7 +417,7 @@ if __name__=='__main__':
         assert B_.find_bit_sum_counts() == sorted([(B.length-w,n) for (w,n) in B.find_bit_sum_counts()])
         assert B_.total_bit_sum() == B.size() * B.length - B.total_bit_sum()
 
-        # adding parity bit
+    def test_adding_parity_bit(self):
         D = Binary_code(2,['11','10','01','00'])
         assert D.length == 2
         assert D.size() == 4
@@ -418,7 +431,7 @@ if __name__=='__main__':
         assert E.find_bit_sum_counts() == [(0,1), (2,3)]
         assert E.total_bit_sum() == D.total_bit_sum() + 2
 
-        # choose_by_bit_sum
+    def test_choose_by_bit_sum(self):
         D = Binary_code(2,['11','10','01','00'])
         assert D.length == 2
         assert D.size() == 4
@@ -451,7 +464,7 @@ if __name__=='__main__':
         E.choose_by_bit_sum(1,1)
         assert E.size() == 0
 
-        ### give_N_codeword_list_by_bit_sum
+    def test_give_N_codeword_list_by_bit_sum(self):
         D = Binary_code(2,['11','10','01','00'])
         assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
         # check that the highest (or lowest) bit-sum elements are removed first (the True/False argument is remove_low)
@@ -475,37 +488,10 @@ if __name__=='__main__':
         assert D.give_N_codeword_list_by_bit_sum(1,False) == [b00]
         assert D.give_N_codeword_list_by_bit_sum(1,True) == [b11]
         # check that it's impossible to get 5 elements from a 4-element binary code
-        try:                    D.give_N_codeword_list_by_bit_sum(5,False)
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Testing error!")
+        self.assertRaises(BinaryCodeError, D.give_N_codeword_list_by_bit_sum, 5, False)
 
-        ### Creation from file, generator matrix etc
-        # check that creation fails if the length is wrong
-        try:                    B = Binary_code(4,['110','101','011','000'])
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Binary_code creation length-check didn't work!")
-        # check that creation fails if the expected count is wrong
-        try:                    B = Binary_code(3,['110','101','011','000'],expected_count=5)
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Binary_code creation expected count check didn't work!")
-        # check that add/remove fails if the length is wrong
-        B = Binary_code(3,['110','101','011','000'])
-        try:                    B.add('1111')
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Binary_code.add(val) length-check didn't work!")
-        try:                    B.remove('1111')
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Binary_code.remove(val) length-check didn't work!")
-        try:                    B.remove('111')
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Binary_code.remove(val) membership-check didn't work!")
-
-        # check that creation fails with inexistent method keyword
-        try:                    B = Binary_code(4,['110','101','011','000'],method='random')
-        except BinaryCodeError: pass    # this SHOULD raise an error; complain if it doesn't!
-        else:                   raise BinaryCodeError("Binary_code creation length-check didn't work!")
-
-        # check creation from matrix generator file (which also checks generation from a matrix object, right?)
+    def test_creation_from_matrix_generator_file(self):
+        # (also implicitly checks generation from a matrix object)
         infile1 = 'error-correcting_codes/19-10-5_generator'
         try:            B19 = Binary_code(19,val=infile1,method='matrixfile',expected_count=2**10)
         except IOError: sys.exit("Couldn't find input file %s to run matrix file test."%infile1)
@@ -514,14 +500,18 @@ if __name__=='__main__':
         assert B20.size() == 2**10
         assert B20.length == 20
         assert B20.find_bit_sum_counts() == [(0, 1), (6, 94), (8, 240), (10, 348), (12, 260), (14, 70), (16, 11)]
-        # could also check Hamming distances, but those take a long time
-        #assert B19.find_Hamming_distance_range() == (5,16)
-        #assert B20.find_Hamming_distance_range() == (6,16)
 
-        # check creation from code list file
+    def test_creation_from_code_list_file(self):
+        B19 = Binary_code(19,val='error-correcting_codes/19-10-5_generator',method='matrixfile',expected_count=2**10)
+        B20 = B19.add_parity_bit()
         infile2 = 'error-correcting_codes/20-10-6_list'
         try:            B20_new = Binary_code(20,val=infile2,method='listfile',expected_count=2**10)
         except IOError: sys.exit("Couldn't find input file %s to run list file test."%infile2)
         assert B20_new == B20
 
-        print "...DONE"
+
+if __name__=='__main__':
+    """ If module is ran directly, run tests. """
+
+    print "This is a module for import by other programs - it doesn't do anything on its own.  Running tests..."
+    unittest.main()
