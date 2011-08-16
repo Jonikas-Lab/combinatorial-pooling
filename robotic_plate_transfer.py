@@ -17,6 +17,7 @@ USAGE:  robotic_plate_transfer.py [options] outfile_base_name
 """
 
 import sys
+import unittest
 from collections import defaultdict
 import binary_code_utilities
 from general_utilities import invert_list_to_dict, save_line_list_as_file, write_header_data
@@ -67,81 +68,103 @@ class Plate_type:
 plate_types = dict([(n,Plate_type(n)) for n in plate_sizes])
 
 
-### Unit-tests for classes/setup above and "general functions" below
+### Unit-tests for the classes/setup above and "general functions" below
 
-def test_functionality():
-    import testing_utilities
+class Testing_Plate_type(unittest.TestCase):
+    """ Unit-tests for the Plate_type class and methods. """
+    # (all the plate types have been generated already on module import, so just test them)
 
-    if True:
-        print("Testing Plate_type class...")
-        ### all the plate types have been generated already on module import, so just test them
+    def test__get_well_ID_from_number__known_wells(self):
         # try the first, second, first-in-second-row, and last well of each plate size
-        if True:
-            assert plate_types[6].get_well_ID_from_number(0) == 'A1'
-            assert plate_types[6].get_well_ID_from_number(1) == 'A2'
-            assert plate_types[6].get_well_ID_from_number(3) == 'B1'
-            assert plate_types[6].get_well_ID_from_number(5) == 'B3'
-            assert plate_types[24].get_well_ID_from_number(0) == 'A1'
-            assert plate_types[24].get_well_ID_from_number(1) == 'A2'
-            assert plate_types[24].get_well_ID_from_number(6) == 'B1'
-            assert plate_types[24].get_well_ID_from_number(23) == 'D6'
-            assert plate_types[96].get_well_ID_from_number(0) == 'A1'
-            assert plate_types[96].get_well_ID_from_number(1) == 'A2'
-            assert plate_types[96].get_well_ID_from_number(12) == 'B1'
-            assert plate_types[96].get_well_ID_from_number(95) == 'H12'
-            assert plate_types[384].get_well_ID_from_number(0) == 'A1'
-            assert plate_types[384].get_well_ID_from_number(1) == 'A2'
-            assert plate_types[384].get_well_ID_from_number(24) == 'B1'
-            assert plate_types[384].get_well_ID_from_number(383) == 'P24'
-        # and in reverse
-        if True:
-            assert plate_types[6].get_well_number_from_ID('A1') == 0
-            assert plate_types[6].get_well_number_from_ID('A2') == 1
-            assert plate_types[6].get_well_number_from_ID('B1') == 3
-            assert plate_types[6].get_well_number_from_ID('B3') == 5
-            assert plate_types[24].get_well_number_from_ID('A1') == 0
-            assert plate_types[24].get_well_number_from_ID('A2') == 1
-            assert plate_types[24].get_well_number_from_ID('B1') == 6
-            assert plate_types[24].get_well_number_from_ID('D6') == 23
-            assert plate_types[96].get_well_number_from_ID('A1') == 0
-            assert plate_types[96].get_well_number_from_ID('A2') == 1
-            assert plate_types[96].get_well_number_from_ID('B1') == 12
-            assert plate_types[96].get_well_number_from_ID('H12') == 95
-            assert plate_types[384].get_well_number_from_ID('A1') == 0
-            assert plate_types[384].get_well_number_from_ID('A2') == 1
-            assert plate_types[384].get_well_number_from_ID('B1') == 24
-            assert plate_types[384].get_well_number_from_ID('P24') == 383
-        # getting a too-high number should fail
-        if True:
-            testing_utilities.call_should_fail(plate_types[6].get_well_ID_from_number, [6], PlateTransferError, 
-                                               message="Shouldn't be able to get well 6 (0-based) from 6-well plate!")
-            testing_utilities.call_should_fail(plate_types[24].get_well_ID_from_number, [24], PlateTransferError, 
-                                               message="Shouldn't be able to get well 24 (0-based) from 24-well plate!")
-            testing_utilities.call_should_fail(plate_types[96].get_well_ID_from_number, [96], PlateTransferError, 
-                                               message="Shouldn't be able to get well 96 (0-based) from 96-well plate!")
-            testing_utilities.call_should_fail(plate_types[384].get_well_ID_from_number, [384], PlateTransferError, 
-                                               message="Shouldn't be able to get well 384 (0-based) from 384-well plate!")
+        assert plate_types[6].get_well_ID_from_number(0) == 'A1'
+        assert plate_types[6].get_well_ID_from_number(1) == 'A2'
+        assert plate_types[6].get_well_ID_from_number(3) == 'B1'
+        assert plate_types[6].get_well_ID_from_number(5) == 'B3'
+        assert plate_types[24].get_well_ID_from_number(0) == 'A1'
+        assert plate_types[24].get_well_ID_from_number(1) == 'A2'
+        assert plate_types[24].get_well_ID_from_number(6) == 'B1'
+        assert plate_types[24].get_well_ID_from_number(23) == 'D6'
+        assert plate_types[96].get_well_ID_from_number(0) == 'A1'
+        assert plate_types[96].get_well_ID_from_number(1) == 'A2'
+        assert plate_types[96].get_well_ID_from_number(12) == 'B1'
+        assert plate_types[96].get_well_ID_from_number(95) == 'H12'
+        assert plate_types[384].get_well_ID_from_number(0) == 'A1'
+        assert plate_types[384].get_well_ID_from_number(1) == 'A2'
+        assert plate_types[384].get_well_ID_from_number(24) == 'B1'
+        assert plate_types[384].get_well_ID_from_number(383) == 'P24'
 
-        # other things that should fail - making a new plate type with a weird size
-        if True:
-            testing_utilities.call_should_fail(Plate_type,[0],PlateTransferError,
-                                               message="Shouldn't ever be able to create a 0-well plate!")
-            testing_utilities.call_should_fail(Plate_type,[10],PlateTransferError,
-                                               message="Shouldn't be able to create a 10-well plate, it wasn't defined!")
-            testing_utilities.call_should_fail(Plate_type,['T'],PlateTransferError,
-                                               message="Shouldn't be able to create a T-well plate, that makes no sense!")
-        print("...DONE")
+    def test__get_well_ID_from_number__last_wells(self):
+        # you can also use a negative list index to get wells from the end, why not
+        assert plate_types[6].get_well_ID_from_number(-1) == 'B3'
+        assert plate_types[24].get_well_ID_from_number(-1) == 'D6'
+        assert plate_types[96].get_well_ID_from_number(-1) == 'H12'
+        assert plate_types[384].get_well_ID_from_number(-1) == 'P24'
 
-    if True:
-        print("Testing generate_outfile_names function...")
-        # single Biomek file - easy
+    def test__get_well_ID_from_number__bad_numbers(self):
+        # basic tests with obviously wrong values
+        self.assertRaises(PlateTransferError, plate_types[6].get_well_ID_from_number, 100)
+        self.assertRaises(TypeError, plate_types[6].get_well_ID_from_number, 0.5)
+        self.assertRaises(TypeError, plate_types[6].get_well_ID_from_number, 'A')
+        self.assertRaises(TypeError, plate_types[6].get_well_ID_from_number, [1])
+        # well numbers are 0-based, so there should be no well N in an N-well plate (the wells are 0..N-1)
+        for plate_size in plate_sizes:
+            self.assertRaises(PlateTransferError, plate_types[plate_size].get_well_ID_from_number, plate_size)
+
+    def test__get_well_number_from_ID__known_wells(self):
+        # try the first, second, first-in-second-row, and last well of each plate size
+        assert plate_types[6].get_well_number_from_ID('A1') == 0
+        assert plate_types[6].get_well_number_from_ID('A2') == 1
+        assert plate_types[6].get_well_number_from_ID('B1') == 3
+        assert plate_types[6].get_well_number_from_ID('B3') == 5
+        assert plate_types[24].get_well_number_from_ID('A1') == 0
+        assert plate_types[24].get_well_number_from_ID('A2') == 1
+        assert plate_types[24].get_well_number_from_ID('B1') == 6
+        assert plate_types[24].get_well_number_from_ID('D6') == 23
+        assert plate_types[96].get_well_number_from_ID('A1') == 0
+        assert plate_types[96].get_well_number_from_ID('A2') == 1
+        assert plate_types[96].get_well_number_from_ID('B1') == 12
+        assert plate_types[96].get_well_number_from_ID('H12') == 95
+        assert plate_types[384].get_well_number_from_ID('A1') == 0
+        assert plate_types[384].get_well_number_from_ID('A2') == 1
+        assert plate_types[384].get_well_number_from_ID('B1') == 24
+        assert plate_types[384].get_well_number_from_ID('P24') == 383
+        
+    def test__get_well_number__fromID__bad_numbers(self):
+        """ For each size, test a row and column that shouldn't exist). """
+        # MAYBE-TODO make.get_well_number_from_ID check for this explicitly, raise PlateTransferError instead of KeyError?
+        self.assertRaises(KeyError, plate_types[6].get_well_number_from_ID, 'A4')
+        self.assertRaises(KeyError, plate_types[6].get_well_number_from_ID, 'C1')
+        self.assertRaises(KeyError, plate_types[24].get_well_number_from_ID, 'A7')
+        self.assertRaises(KeyError, plate_types[24].get_well_number_from_ID, 'E1')
+        self.assertRaises(KeyError, plate_types[96].get_well_number_from_ID, 'A13')
+        self.assertRaises(KeyError, plate_types[96].get_well_number_from_ID, 'I1')
+        self.assertRaises(KeyError, plate_types[384].get_well_number_from_ID, 'A25')
+        self.assertRaises(KeyError, plate_types[384].get_well_number_from_ID, 'Q1')
+
+    def test__creating_bad_plate_types(self):
+        # Shouldn't ever be able to create a 0-well plate
+        self.assertRaises(PlateTransferError,Plate_type,0)
+        # Shouldn't be able to create a 10-well plate, it wasn't defined
+        self.assertRaises(PlateTransferError,Plate_type,10)
+        # Shouldn't be able to create a T-well plate, that makes no sense
+        self.assertRaises(PlateTransferError,Plate_type,'T')
+
+
+class Testing_generate_outfile_names(unittest.TestCase):
+    """ Unit-tests for the generate_outfile_names function. """
+
+    def test__single_Biomek_file(self):
         assert generate_outfile_names('X',0,0) == ('X.txt',['X_Biomek.csv'],[])
+
+    def test__different_input_formats(self):
         # file_plate_names can be specified in multiple ways
         assert generate_outfile_names('X',1,0,1,['A']) == ('X.txt',['X_Biomek_A.csv'],[])
         assert generate_outfile_names('X',1,0,1,'A') == ('X.txt',['X_Biomek_A.csv'],[])
         assert generate_outfile_names('X',1,0,2,['A','B']) == ('X.txt',['X_Biomek_A.csv','X_Biomek_B.csv'],[])
         assert generate_outfile_names('X',1,0,2,'A,B') == ('X.txt',['X_Biomek_A.csv','X_Biomek_B.csv'],[])
         assert generate_outfile_names('X',1,0,2,'A') == ('X.txt',['X_Biomek_A1.csv','X_Biomek_A2.csv'],[])
+
+    def test__mirroring(self):
         # mirroring
         assert generate_outfile_names('X',0,1) == ('X.txt',['X_Biomek.csv'],['X_Biomek_mirror.csv'])
         assert generate_outfile_names('X',1,1,1,['A']) == ('X.txt',['X_Biomek_A.csv'],['X_Biomek_mirror_A.csv'])
@@ -151,138 +174,147 @@ def test_functionality():
                                                            ['X_Biomek_mirror_A.csv','X_Biomek_mirror_B.csv'])
         assert generate_outfile_names('X',1,1,2,'A') == ('X.txt',['X_Biomek_A1.csv','X_Biomek_A2.csv'],
                                                          ['X_Biomek_mirror_A1.csv','X_Biomek_mirror_A2.csv'])
-        # the last two args must be given if second arg is True
-        testing_utilities.call_should_fail(generate_outfile_names,('X',1,0),PlateTransferError)
-        testing_utilities.call_should_fail(generate_outfile_names,('X',1,0,1),PlateTransferError)
-        testing_utilities.call_should_fail(generate_outfile_names,('X',1,0,['A']),PlateTransferError)
-        testing_utilities.call_should_fail(generate_outfile_names,('X',1,1),PlateTransferError)
-        testing_utilities.call_should_fail(generate_outfile_names,('X',1,1,1),PlateTransferError)
-        testing_utilities.call_should_fail(generate_outfile_names,('X',1,1,['A']),PlateTransferError)
-        print("...DONE")
 
-    if True:
-        print("Testing get_plate_name_list_from_input function...")
+    def test__second_arg_true_requires_last_two_args(self):
+        # the last two args must be given if second arg is True
+        self.assertRaises(PlateTransferError, generate_outfile_names, 'X',1,0)
+        self.assertRaises(PlateTransferError, generate_outfile_names, 'X',1,0,1)
+        self.assertRaises(PlateTransferError, generate_outfile_names, 'X',1,0,['A'])
+        self.assertRaises(PlateTransferError, generate_outfile_names, 'X',1,1)
+        self.assertRaises(PlateTransferError, generate_outfile_names, 'X',1,1,1)
+        self.assertRaises(PlateTransferError, generate_outfile_names, 'X',1,1,['A'])
+
+
+class Testing_get_plate_name_list_from_input(unittest.TestCase):
+    """ Unit-tests for the get_plate_name_list_from_input function. """
+
+    def test__input_types(self):
         # input can be a list of appropriate length (return unchanged) or a string (split on ,)
         assert get_plate_name_list_from_input(1,['A']) == ['A']
         assert get_plate_name_list_from_input(1,'A') == ['A']
         assert get_plate_name_list_from_input(4,['A','B','C','D']) == ['A','B','C','D']
         assert get_plate_name_list_from_input(4,'A,B,C,D') == ['A','B','C','D']
+        # passing a one-element string is allowed for any N - plates are numbered automatically
         assert get_plate_name_list_from_input(4,'A') == ['A1','A2','A3','A4']
-        # first arg should match length of second arg (unless the latter is 1)
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(1,'A,B,C'),PlateTransferError)
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(1,['A','B','C']),PlateTransferError)
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(2,'A,B,C'),PlateTransferError)
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(2,['A','B','C']),PlateTransferError)
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(4,'A,B,C'),PlateTransferError)
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(4,['A','B','C']),PlateTransferError)
-        # duplicate values not allowed
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(3,'A,A,C'),PlateTransferError)
-        testing_utilities.call_should_fail(get_plate_name_list_from_input,(3,['A','A','C']),PlateTransferError)
-        print("...DONE")
+        # if the second arg is a LIST, not string, with one element, fail 
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 4,['A'])
 
-    if True:
-        print("Testing numbers_to_plate_and_well_IDs function...")
+    def test__correct_number_of_plate_names(self):
+        # first arg should match length of second arg (unless the latter is a one-element string)
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 1,'A,B,C')
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 1,['A','B','C'])
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 2,'A,B,C')
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 2,['A','B','C'])
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 4,'A,B,C')
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 4,['A','B','C'])
+
+    def test__duplicates_not_allowed(self):
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 3,'A,A,C')
+        self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 3,['A','A','C'])
+
+
+class Testing_numbers_to_plate_and_well_IDs(unittest.TestCase):
+    """ Unit-tests for the numbers_to_plate_and_well_IDs function. """
+
+    def test__correct_cases(self):
         assert numbers_to_plate_and_well_IDs(10, 6, 2, ['plate1','plate2']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate2,A1', 'plate2,A2', 'plate2,A3', 'plate2,B1']
         assert numbers_to_plate_and_well_IDs(10, 24, 1, ['plate1']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 'plate1,A6', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate1,B4']
         assert numbers_to_plate_and_well_IDs(10, 96, 1, ['plate1']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 'plate1,A6', 'plate1,A7', 'plate1,A8', 'plate1,A9', 'plate1,A10']
-        # things that should fail for various reasons
-        testing_utilities.call_should_fail(numbers_to_plate_and_well_IDs, (10, 6, 2, ['plate1']), PlateTransferError, 
-                                           message="Shouldn't work, N_plates doesn't match the plate ID list!")
-        testing_utilities.call_should_fail(numbers_to_plate_and_well_IDs, (20, 6, 2, ['plate1','plate2']), 
-                                           PlateTransferError, message="Shouldn't work, not enough plates!")
-        testing_utilities.call_should_fail(numbers_to_plate_and_well_IDs, (2, 6, 2, ['plate1','plate2']), 
-                                           PlateTransferError, message="Shouldn't work, too many plates!")
-        testing_utilities.call_should_fail(numbers_to_plate_and_well_IDs, (2, 10, 2, ['plate1','plate2']), 
-                                           PlateTransferError, message="Shouldn't work, 10 isn't a valid plate size!")
-        print("...DONE")
 
-    if True:
-        print("Testing assign_codewords function... (ignore any warnings)")
-        # make some text binary codes
+    def test__bad_input(self):
+        # Shouldn't work, N_plates doesn't match the plate ID list
+        self.assertRaises(PlateTransferError, numbers_to_plate_and_well_IDs, 10, 6, 2, ['plate1'])
+        # Shouldn't work, not enough plates
+        self.assertRaises(PlateTransferError, numbers_to_plate_and_well_IDs, 20, 6, 2, ['plate1','plate2'])
+        # Shouldn't work, too many plates
+        self.assertRaises(PlateTransferError, numbers_to_plate_and_well_IDs, 2, 6, 2, ['plate1','plate2'])
+        # Shouldn't work, 10 isn't a valid plate size
+        self.assertRaises(PlateTransferError, numbers_to_plate_and_well_IDs, 2, 10, 2, ['plate1','plate2'])
+
+
+class Testing_assign_codewords(unittest.TestCase):
+    """ Unit-tests for the assign_codewords function. """
+
+    def setUp(self):
+        # make some test binary codes
         [b01,b10,b11,b00] = [binary_code_utilities.Binary_codeword(x) for x in ['01','10','11','00']]
-        b_list_with_00 = [b01,b10,b11,b00]
-        b_list_without_00 = [b01,b10,b11]
-        B_with_00 = binary_code_utilities.Binary_code(2,b_list_with_00)
-        B_without_00 = binary_code_utilities.Binary_code(2,b_list_without_00)
+        [self.b01,self.b10,self.b11,self.b00] = [b01,b10,b11,b00]
+        self.b_list_with_00 = [b01,b10,b11,b00]
+        self.b_list_without_00 = [b01,b10,b11]
+        self.B_with_00 = binary_code_utilities.Binary_code(2,self.b_list_with_00)
+        self.B_without_00 = binary_code_utilities.Binary_code(2,self.b_list_without_00)
         [b01111,b10000,b10001] = [binary_code_utilities.Binary_codeword(x) for x in ['01111','10000','10001']]
-        b_list_longer = [b01111,b10000,b10001]
-        B_longer = binary_code_utilities.Binary_code(5,b_list_longer)
-        # 1. result should be a subset of the expected set and of the expected length (don't check the ordering yet)
-        s = set(assign_codewords(3,2,B_without_00,quiet=True))
-        assert s == set(b_list_without_00) and len(s) == 3
-        s = set(assign_codewords(2,2,B_without_00,quiet=True))
-        assert s.issubset(set(b_list_without_00)) and len(s) == 2
-        s = set(assign_codewords(1,2,B_without_00,quiet=True))
-        assert s.issubset(set(b_list_without_00)) and len(s) == 1
-        s = set(assign_codewords(3,5,B_longer,quiet=True))
-        assert s == set(b_list_longer) and len(s) == 3
-        s = set(assign_codewords(2,5,B_longer,quiet=True))
-        assert s.issubset(set(b_list_longer)) and len(s) == 2
-        s = set(assign_codewords(1,5,B_longer,quiet=True))
-        assert s.issubset(set(b_list_longer)) and len(s) == 1
-        # (same with remove_low set to True)
-        s = set(assign_codewords(3,2,B_without_00,remove_low=True,quiet=True))
-        assert s == set(b_list_without_00) and len(s) == 3
-        s = set(assign_codewords(2,2,B_without_00,remove_low=True,quiet=True))
-        assert s.issubset(set(b_list_without_00)) and len(s) == 2
-        s = set(assign_codewords(1,2,B_without_00,remove_low=True,quiet=True))
-        assert s.issubset(set(b_list_without_00)) and len(s) == 1
-        s = set(assign_codewords(3,5,B_longer,remove_low=True,quiet=True))
-        assert s == set(b_list_longer) and len(s) == 3
-        s = set(assign_codewords(2,5,B_longer,remove_low=True,quiet=True))
-        assert s.issubset(set(b_list_longer)) and len(s) == 2
-        s = set(assign_codewords(1,5,B_longer,remove_low=True,quiet=True))
-        assert s.issubset(set(b_list_longer)) and len(s) == 1
-        # 2. the all-zero codeword should always be thrown away
-        assert b00 not in set(assign_codewords(3,2,B_with_00,quiet=True))
-        assert b00 not in set(assign_codewords(2,2,B_with_00,quiet=True))
-        assert b00 not in set(assign_codewords(1,2,B_with_00,quiet=True))
-        # (same with remove_low set to True)
-        assert b00 not in set(assign_codewords(3,2,B_with_00,remove_low=True,quiet=True))
-        assert b00 not in set(assign_codewords(2,2,B_with_00,remove_low=True,quiet=True))
-        assert b00 not in set(assign_codewords(1,2,B_with_00,remove_low=True,quiet=True))
-        # 3. the words should be sorted by weight, with the low-weight ones taken first
-        #   (assume the order of same-weight words can be arbitrary - test both cases)
-        assert assign_codewords(1,2,B_without_00,quiet=True) in [ [b01], [b10] ]
-        assert assign_codewords(2,2,B_without_00,quiet=True) in [ [b01,b10], [b10,b01] ]
-        assert assign_codewords(3,2,B_without_00,quiet=True) in [ [b01,b10,b11], [b10,b01,b11] ]
-        assert assign_codewords(1,5,B_longer,quiet=True) == [b10000]
-        assert assign_codewords(2,5,B_longer,quiet=True) == [b10000,b10001]
-        assert assign_codewords(3,5,B_longer,quiet=True) == [b10000,b10001,b01111]
-        # if remove_low is set to True, the sorting by weight should be reversed.
-        assert assign_codewords(1,2,B_without_00,remove_low=True,quiet=True) == [b11]
-        assert assign_codewords(2,2,B_without_00,remove_low=True,quiet=True) in [ [b11,b10], [b11,b01] ]
-        assert assign_codewords(3,2,B_without_00,remove_low=True,quiet=True) in [ [b11,b01,b10], [b11,b10,b01] ]
-        assert assign_codewords(1,5,B_longer,remove_low=True,quiet=True) == [b01111]
-        assert assign_codewords(2,5,B_longer,remove_low=True,quiet=True) == [b01111,b10001]
-        assert assign_codewords(3,5,B_longer,remove_low=True,quiet=True) == [b01111,b10001,b10000]
-        # 4. words of the same weight should be sorted lexicographically (but I'm not sure we want to rely on that)
-        assert assign_codewords(3,2,B_without_00,quiet=True) == [b01,b10,b11]
-        assert assign_codewords(3,2,B_without_00,remove_low=True,quiet=True) == [b11,b01,b10]
-        # function should fail when the number of samples or pools doesn't match
-        #   (can't pass arguments by keyword here. The first False/True is remove_low (test both), 
-        #    the second is quiet (always set to True))
-        testing_utilities.call_should_fail(assign_codewords,(4,2,B_without_00,False,True), PlateTransferError, 
-                                           message="Should be too many samples for given code!")
-        testing_utilities.call_should_fail(assign_codewords,(4,2,B_with_00,False,True), PlateTransferError, 
-                                           message="Should be too many samples after '00' removal!")
-        testing_utilities.call_should_fail(assign_codewords,(4,1,B_without_00,False,True), PlateTransferError, 
-                                           message="Number of pools doesn't match code length!")
-        testing_utilities.call_should_fail(assign_codewords,(4,3,B_without_00,False,True), PlateTransferError, 
-                                           message="Number of pools doesn't match code length!")
-        # (same with remove_low set to True)
-        testing_utilities.call_should_fail(assign_codewords,(4,2,B_without_00,True,True), PlateTransferError, 
-                                           message="Should be too many samples for given code!")
-        testing_utilities.call_should_fail(assign_codewords,(4,2,B_with_00,True,True), PlateTransferError, 
-                                           message="Should be too many samples after '00' removal!")
-        testing_utilities.call_should_fail(assign_codewords,(4,1,B_without_00,True,True), PlateTransferError, 
-                                           message="Number of pools doesn't match code length!")
-        testing_utilities.call_should_fail(assign_codewords,(4,3,B_without_00,True,True), PlateTransferError, 
-                                           message="Number of pools doesn't match code length!")
-        print("...DONE")
+        [self.b01111,self.b10000,self.b10001] = [b01111,b10000,b10001]
+        self.b_list_longer = [b01111,b10000,b10001]
+        self.B_longer = binary_code_utilities.Binary_code(5,self.b_list_longer)
 
-    if True:   
-        print("Testing make_Biomek_file_commands function...")
+    def test__result_is_subset_of_right_length(self):
+        """ Result should be a subset of the expected set and of the expected length (don't check the ordering yet). """
+        # (should work the same regardless of remove_low value)
+        for r in [True,False]:
+            s = set(assign_codewords(3,2,self.B_without_00,remove_low=r,quiet=True))
+            assert s == set(self.b_list_without_00) and len(s) == 3
+            s = set(assign_codewords(2,2,self.B_without_00,remove_low=r,quiet=True))
+            assert s.issubset(set(self.b_list_without_00)) and len(s) == 2
+            s = set(assign_codewords(1,2,self.B_without_00,remove_low=r,quiet=True))
+            assert s.issubset(set(self.b_list_without_00)) and len(s) == 1
+            s = set(assign_codewords(3,5,self.B_longer,remove_low=r,quiet=True))
+            assert s == set(self.b_list_longer) and len(s) == 3
+            s = set(assign_codewords(2,5,self.B_longer,remove_low=r,quiet=True))
+            assert s.issubset(set(self.b_list_longer)) and len(s) == 2
+            s = set(assign_codewords(1,5,self.B_longer,remove_low=r,quiet=True))
+            assert s.issubset(set(self.b_list_longer)) and len(s) == 1
+
+    def test__all_zero_codeword_always_removed(self):
+        """ The all-zero codeword should always be thrown away. """
+        # (should work the same regardless of remove_low value)
+        for r in [True,False]:
+            assert self.b00 not in set(assign_codewords(3,2,self.B_with_00,remove_low=r,quiet=True))
+            assert self.b00 not in set(assign_codewords(2,2,self.B_with_00,remove_low=r,quiet=True))
+            assert self.b00 not in set(assign_codewords(1,2,self.B_with_00,remove_low=r,quiet=True))
+
+    def test__words_sorted_by_weight(self):
+        """ The words should be sorted by weight, with the low-weight ones taken first (reverse if remove_low is True).
+        (Assume the order of same-weight words can be arbitrary - accept both cases.) """
+        assert assign_codewords(1,2,self.B_without_00,quiet=True) in [ [self.b01], [self.b10] ]
+        assert assign_codewords(2,2,self.B_without_00,quiet=True) in [ [self.b01,self.b10], [self.b10,self.b01] ]
+        assert assign_codewords(3,2,self.B_without_00,quiet=True) in [[self.b01,self.b10,self.b11], 
+                                                                      [self.b10,self.b01,self.b11]]
+        assert assign_codewords(1,5,self.B_longer,quiet=True) == [self.b10000]
+        assert assign_codewords(2,5,self.B_longer,quiet=True) == [self.b10000,self.b10001]
+        assert assign_codewords(3,5,self.B_longer,quiet=True) == [self.b10000,self.b10001,self.b01111]
+        # if remove_low is set to True, the sorting by weight should be reversed.
+        assert assign_codewords(1,2,self.B_without_00,remove_low=True,quiet=True) == [self.b11]
+        assert assign_codewords(2,2,self.B_without_00,remove_low=True,quiet=True) in [[self.b11,self.b10], 
+                                                                                      [self.b11,self.b01]]
+        assert assign_codewords(3,2,self.B_without_00,remove_low=True,quiet=True) in [[self.b11,self.b01,self.b10], 
+                                                                                      [self.b11,self.b10,self.b01]]
+        assert assign_codewords(1,5,self.B_longer,remove_low=True,quiet=True) == [self.b01111]
+        assert assign_codewords(2,5,self.B_longer,remove_low=True,quiet=True) == [self.b01111,self.b10001]
+        assert assign_codewords(3,5,self.B_longer,remove_low=True,quiet=True) == [self.b01111,self.b10001,self.b10000]
+
+    def test__same_weight_words_sorted_lexicographically(self):
+        """ Words of the same weight should be sorted lexicographically (but I'm not sure we want to rely on that). """
+        assert assign_codewords(3,2,self.B_without_00,quiet=True) == [self.b01,self.b10,self.b11]
+        assert assign_codewords(3,2,self.B_without_00,remove_low=True,quiet=True) == [self.b11,self.b01,self.b10]
+
+    def test__same_weight_words_sorted_lexicographically(self):
+        """ Function should fail when the number of samples or pools doesn't match. """
+        # (should work the same regardless of remove_low value)
+        for r in [True,False]:
+            # Should be too many samples for given code
+            self.assertRaises(PlateTransferError, assign_codewords, 4,2,self.B_without_00,remove_low=r,quiet=True)
+            # Should be too many samples after '00' removal
+            self.assertRaises(PlateTransferError, assign_codewords, 4,2,self.B_with_00,remove_low=r,quiet=True)
+            # Number of pools doesn't match code length
+            self.assertRaises(PlateTransferError, assign_codewords, 4,1,self.B_without_00,remove_low=r,quiet=True)
+            self.assertRaises(PlateTransferError, assign_codewords, 4,3,self.B_without_00,remove_low=r,quiet=True)
+
+
+class Testing_make_Biomek_file_commands(unittest.TestCase):
+    """ Unit-tests for the make_Biomek_file_commands function. """
+
+    def test__basic_functionality(self):
         [b01,b10,b11,b00] = [binary_code_utilities.Binary_codeword(x) for x in ['01','10','11','00']]
         # basic functionality for combinatorial pooling (note that 'x', 'A' etc here would really be 'plate1,A1' or such)
         assert make_Biomek_file_commands([b10],['x'],['A','B'],5) == ['x,A,5']
@@ -291,27 +323,30 @@ def test_functionality():
         assert make_Biomek_file_commands([b01,b10,b11],['x','y','z'],['A','B'],5) == ['x,B,5','y,A,5','z,A,5','z,B,5']
         assert make_Biomek_file_commands([b11,b10,b01],['x','y','z'],['A','B'],5) == ['x,A,5','x,B,5','y,A,5','z,B,5']
         assert make_Biomek_file_commands([b01,b01,b01],['x','y','z'],['A','B'],5) == ['x,B,5','y,B,5','z,B,5']
-        # should fail if there are length mismatches between samples/codewords/pools
-        [b1,b10001] = [binary_code_utilities.Binary_codeword(x) for x in ['1','10001']]
-        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b11],['x','y','z'],['A','B'],5), 
-                                           PlateTransferError, message="Len of codewords and sample_positions mismatch!")
-        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b10,b11],['x','z'],['A','B'],5), 
-                                           PlateTransferError, message="Len of codewords and sample_positions mismatch!")
-        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b10,b1],['x','y','z'],['A','B'],5), 
-                                           PlateTransferError, message="Number of pools and codeword len mismatch!")
-        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b10,b10001],['x','y','z'],['A','B'],5), 
-                                           PlateTransferError, message="Number of pools and codeword len mismatch!")
-        testing_utilities.call_should_fail(make_Biomek_file_commands,([b01,b10,b11],['x','y','z'],['B'],5), 
-                                           PlateTransferError, message="Number of pools and codeword len mismatch!")
-        print("...DONE")
 
-    if True:
-        print("Testing split_command_list_by_source function...")
+    def test__fail_for_length_mismatches(self):
+        [b01,b10,b11,b00] = [binary_code_utilities.Binary_codeword(x) for x in ['01','10','11','00']]
+        [b1,b10001] = [binary_code_utilities.Binary_codeword(x) for x in ['1','10001']]
+        # Lengths of codewords and sample_positions are mismatched
+        self.assertRaises(PlateTransferError, make_Biomek_file_commands, [b01,b11],['x','y','z'],['A','B'],5)
+        # Lengths of codewords and sample_positions are mismatched
+        self.assertRaises(PlateTransferError, make_Biomek_file_commands, [b01,b10,b11],['x','z'],['A','B'],5)
+        # Number of pools and codeword length mismatch
+        self.assertRaises(PlateTransferError, make_Biomek_file_commands, [b01,b10,b1],['x','y','z'],['A','B'],5)
+        # Number of pools and codeword length mismatch
+        self.assertRaises(PlateTransferError, make_Biomek_file_commands, [b01,b10,b10001],['x','y','z'],['A','B'],5)
+        # Number of pools and codeword length mismatch
+        self.assertRaises(PlateTransferError, make_Biomek_file_commands, [b01,b10,b11],['x','y','z'],['B'],5)
+
+
+class Testing_split_command_list_by_source(unittest.TestCase):
+    """ Unit-tests for the split_command_list_by_source function. """
+
+    def test__split_command_list_by_source(self):
         # if there's only one plate, the result should be a one-item dictionary
         assert split_command_list_by_source(['p1,A1,x,5','p1,A2,y,5']) == {'p1':['p1,A1,x,5','p1,A2,y,5']}
         # if there are multiple plates, return one dict per plate
         assert split_command_list_by_source(['p1,A1,x,5','p2,A1,y,5']) == {'p1':['p1,A1,x,5'], 'p2': ['p2,A1,y,5']}
-        print("...DONE")
 
 
 
@@ -650,8 +685,11 @@ if __name__=='__main__':
 
     # Unit-testing - don't even look for more options/arguments, just run the test suite
     if options.test_functionality:
-        print("*** You used the -t option - ignoring all other options/arguments, running the built-in simple test suite.")
+        print("*** You used the -t option - ignoring all other options/arguments (except -T), "
+              + "running the built-in simple test suite.")
         print("Defined plate sizes: %s"%plate_sizes)
+        # tun unittest.main, passing it no arguments (by default it takes sys.argv and complains about the -t)
+        unittest.main(argv=[sys.argv[0]])
         test_functionality()
         # if not doing a test run, exit now; doing a normal run after unit-testing isn't allowed, but doing a test run is.
         if not options.test_run:
@@ -679,4 +717,3 @@ if __name__=='__main__':
 
     # If it's not a test run, just run the main functionality
     run_main_function(parser,options,args)
-
