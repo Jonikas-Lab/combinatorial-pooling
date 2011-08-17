@@ -16,7 +16,7 @@ USAGE:  robotic_plate_transfer.py [options] outfile_base_name
         robotic_plate_transfer.py [-h] [-t] [-T]
 """
 
-import sys
+import sys, os, shutil
 import unittest
 from collections import defaultdict
 import binary_code_utilities
@@ -581,8 +581,8 @@ def define_option_parser():
     parser.add_option('-M','--add_mirror_pooling_files', action='store_true', default=False, 
                       help="In addition to the normal Biomek file, also make files with commands for a 'mirrored' set: " 
                       + "if sample A is in pool B in the normal set it isn't in the mirrored set, and vice versa.")
-    parser.add_option('-u','--mirror_pool_plate_suffix', default='', metavar='S', 
-                      help="Append S to the pool plate names for the mirror pooling Biomek files (default empty).")
+    parser.add_option('-u','--mirror_pool_plate_suffix', default='_mirror', metavar='S', 
+                      help="Append S to the pool plate names for the mirror pooling Biomek files (default %default).")
 
     parser.add_option('-s','--size_of_sample_plates', type='int', default=96, metavar='M', 
                       help="Sample (source) plate size (from %s)"%plate_sizes + " (default %default)")
@@ -629,8 +629,6 @@ def check_options_and_args(parser,options,args):
         parser.error("Positive -n and -N values required!")
     if not bool(options.binary_code_list_file) ^ bool(options.binary_code_generator_file):  # is xor
         parser.error("Exactly one of -c and -C must be provided!")
-    if options.mirror_pool_plate_suffix and not options.add_mirror_pooling_files:
-        parser.error("There's no point in specifying -u when -M isn't set!")
 
     # MAYBE-TODO could allow -p/-P to be automatically calculated from -n/-N and -s/-S?
 
@@ -695,21 +693,27 @@ if __name__=='__main__':
         if not options.test_run:
             sys.exit(0)
 
-    # Test run: robotic_plate_transfer.py -n 63 -N 15 -P 3 -i Source1 -C error-correcting_codes/15-6-6_generator test
-    # since we'll be redoing the parsing on an example string, the option value will be overwritten, so save it separately
-    test_run = options.test_run     
-    test_run_inputs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator test1 -q", 
-                       "-n 63 -N 15 -P 3 -i Source1 -o -M -u _mirror -C error-correcting_codes/15-6-6_generator test2 -q", 
-                       "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test3 -q"]
-    # MAYBE-TODO the -C option values above will only work if we're in the directory where the script is - fix that?
-    # MAYBE-TODO add name/description strings to the test cases?
-    # MAYBE-TODO make the outputs go into a test_outputs folder instead of polluting the current directory! Make that folder if doesn't exist. Allow the folder name to be given as an option?
-    if test_run:
+
+    if options.test_run:
         print("*** You used the -T option - ignoring all other options and running the built-in example test runs.")
-        for test_input in test_run_inputs:
-            print(" * New test run, with arguments: %s"%test_input)
+        if not os.access("./error-correcting_codes",os.F_OK):
+            sys.exit("Error: there is not error-correcting_codes folder in this directory - can't run tests.")
+        if os.access("./test_outputs",os.F_OK):
+            print("Test output files will be saved in the test_outputs directory (already present - removing it now).")
+            shutil.rmtree("./test_outputs")
+        else:
+            print("Test output files will be saved in the test_outputs directory (not present - creating it now).")
+        os.mkdir("./test_outputs")
+        # MAYBE-TODO Allow the test_outputs folder name to be given as an argument/option?  How?
+
+        test_runs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator test_outputs/test1 -q", 
+                     "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator test_outputs/test2 -q", 
+                    "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test_outputs/test3 -q"]
+        # MAYBE-TODO add name/description strings to the test cases?
+        for test_run in test_runs:
+            print(" * New test run, with arguments: %s"%test_run)
             # regenerate options with test argument string
-            (options, args) = parser.parse_args(test_input.split())
+            (options, args) = parser.parse_args(test_run.split())
             run_main_function(parser,options,args)
         print("*** Test runs finished. If you didn't get any errors, that's good (warnings are all right). "
               + "Check the output files to make sure.")
