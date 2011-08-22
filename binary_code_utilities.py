@@ -291,6 +291,11 @@ class Binary_code:
         pass
         # MAYBE-TODO implement using clique_find.py
 
+    # MAYBE-TODO implement some other options for reducing the set to one without clonality issues?
+    #   1. Naive method as used on Goodman 2009: check A|B=C for all pairwise codeword combinations, find the codewords that won't cause clonality issues (i.e. can't be A, B or C in the equation above with any of the other codewords), just take those.  The number will probably be low.  
+    #   2. Any other sensible algorithms for doing this?  See Clonality section of notes.txt.
+
+
 class Testing_Binary_codeword(unittest.TestCase):
     """ Testing Binary_codeword functionality. """
 

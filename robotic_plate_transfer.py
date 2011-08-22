@@ -609,6 +609,14 @@ def define_option_parser():
     parser.add_option('-H','--Biomek_file_header', default="SourcePlt,SourceWell,DestPlt,DestWell,Volume", metavar='S', 
                       help="Header line for the Biomek transfer file (won't be printed if set to ''; default %default).")
 
+    # MAYBE-TODO add a minimum Hamming distance option, make the program check that all pairs in the final codeword set satisfy that?
+    # MAYBE-TODO get histograms of Hamming distances and bit sums?  (at least as numbers, possibly plots?)
+
+    # MAYBE-TODO implement more ways of dealing with the clonality issue?  
+    #   1. Simple check - check that the bitwise OR of no two codewords generates a codeword that's in the set
+    #   2. More complicated check - minimum Hamming distance we require between any codeword and any bitwise OR of two codewords (would have to be specified as an option).  Or just get a histogram of that printed. 
+    #   3. Actually try to get a set that doesn't have clonality issues? (based on some minimum distance given as an option).  (The actual mechanism for this would have to be implemented in binary_code_utilities.py - reduce_by_Hamming_distance or something else, see possible methods in the notes above)
+
     return parser
 
 
