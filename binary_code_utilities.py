@@ -5,7 +5,7 @@ Various utilities for dealing with binary codes: representation, reading from a 
 
 import sys
 from collections import defaultdict
-from itertools import combinations
+from itertools import combinations, permutations
 from numpy import array, dot
 import bitstring
 import unittest
@@ -106,10 +106,17 @@ class Binary_codeword:
     def __repr__(self):     return "Binary_codeword('%s')"%self.string()
     def __str__(self):      return self.string()
 
+
 def Hamming_distance(val1,val2):
     """ Given two binary strings, return the number of bits by which their binary representations differ. """
     bitwise_xor = val1^val2
     return bitwise_xor.weight()
+
+def bit_change_count(val1,val2):
+    """ Given two binary strings, return A) the count of bits that were 0 in val1 and 1 in val2, and B) the reverse. """
+    count_0_to_1 = (~val1)&val2
+    count_1_to_0 = val1&(~val2)
+    return count_0_to_1.weight(), count_1_to_0.weight()
 
 
 ### Binary code (set of binary strings) representation
@@ -286,14 +293,74 @@ class Binary_code:
         codewords.sort(key = lambda codeword: codeword.weight(), reverse=remove_low)
         return codewords[:N]
 
+    def clonality_count_conflicts(self, permitted_1_to_0_changes=0, permitted_0_to_1_changes=0, count_self_conflict=False):
+        """ Simple clonality conflict count.  Return a (conflict_count: codeword_set) dictionary.
+        Go over all combinations of codewords A,B,C in the code, and whenever binary_or(A,B)=C (or is close enough to C  
+         according to the permitted_0_to_1_changes and permitted_1_to_0_changes arguments, where 0_to_1 means a 0 in C), 
+         add one conflict count to all three codewords. 
+        The count_self_conflict argument specifies whether A+B=A is considered as a problem the same way A+B=C is.
+        Codewords with 0 conflicts are guaranteed not to generate problems, but nothing very useful can be said about
+         how many and which of the ones with low counts could be added to that set without generating clonality issues.
+        """
+        # TODO this is really insanely slow!!  There's probably a way to speed it up...
+        #   * can definitely speed up the version with default arguments by just going over all A,B pairs and checking for set membership of the result in the set of codewords.  DONE
+        #   * when the arguments AREN'T 0, could speed it up (at the cost of memory) by generating a set of all disallowed clonality-products based on the set of all codewords, and then going over all A,B combinations and checking for membership in that set...  Yeah, seems like a better idea, doesn't it. 
+        #       so TODO need to implement a way of making a set of all possible changed versions of a codeword, given the number of allowed 0-to-1 and 1-to-0 changes. All right.
+        codeword_to_conflict_count = dict([(codeword,0) for codeword in self.codewords])
+        if permitted_1_to_0_changes==0 and permitted_0_to_1_changes==0:
+            for A,B in combinations(self.codewords,2):
+                clonality_signature = A|B
+                # first check the A+B=A special case:  if count_self_conflict is true, give A and B one conflict count 
+                #   (not 2 and 1 as the stadard case would), otherwise do go on to the A+B=C check.
+                if clonality_signature in [A,B]:
+                    if count_self_conflict:
+                        for codeword in A,B:
+                            codeword_to_conflict_count[codeword] += 1
+                # now check the other codewords (note that this won't trigger for A+B=A because it's an elif)
+                elif clonality_signature in self.codewords:
+                    for codeword in A,B,clonality_signature:
+                        codeword_to_conflict_count[codeword] += 1
+        else:
+            for A,B,C in permutations(self.codewords,3):
+                # the order of A,B doesn't matter, so skip half; the order of C does.
+                if A<B:     continue
+                clonality_signature = A|B
+                changes_0_to_1, changes_1_to_0 = bit_change_count(C,A|B)
+                if changes_0_to_1 <= permitted_0_to_1_changes and changes_1_to_0 <= permitted_1_to_0_changes:
+                    for codeword in A,B,C:
+                        codeword_to_conflict_count[codeword] += 1
+            # Do we want to count A+B=A as a problem, like A+B=C?  Optional separate routine.
+            if count_self_conflict:
+                for A,B in permutations(self.codewords,2):
+                    clonality_signature = A|B
+                    changes_0_to_1, changes_1_to_0 = bit_change_count(A,A|B)
+                    if changes_0_to_1 <= permitted_0_to_1_changes and changes_1_to_0 <= permitted_1_to_0_changes:
+                        for codeword in A,B:
+                            codeword_to_conflict_count[codeword] += 1
+        # now generate the final conflict_count:codeword_set dictionary from the codeword:conflict_count one
+        conflict_count_to_codeword_set = defaultdict(lambda: set())
+        for (codeword,conflict_count) in codeword_to_conflict_count.iteritems():
+            conflict_count_to_codeword_set[conflict_count].add(codeword)
+        # it's not good to return defaultdicts - just transform to a dict
+        return dict(conflict_count_to_codeword_set)
+        # TODO I suppose I should test it on the extended Wagner code to see if my results are the same as Goodman2009...
+        #   remember to remove the all-zero codeword first!
+
+    def clonality_naive_reduction(self, permitted_1_to_0_changes=0, permitted_0_to_1_changes=0, count_self_conflict=False):
+        """ Naive solution of the clonality problem, as in Goodman2009: return a set of codewords with 0 conflicts, 
+         as given by clonality_count_conflicts with the same arguments (see that function's docstring for more)."""
+        conflict_count_to_codeword_set = self.clonality_count_conflicts(permitted_1_to_0_changes, 
+                                                                        permitted_0_to_1_changes, count_self_conflict)
+        try:                return conflict_count_to_codeword_set[0]
+        except KeyError:    return set()
+
     def reduce_by_Hamming_distance(self,low,high,min_count):
         """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-hig range. """
         pass
         # MAYBE-TODO implement using clique_find.py
 
     # MAYBE-TODO implement some other options for reducing the set to one without clonality issues?
-    #   1. Naive method as used on Goodman 2009: check A|B=C for all pairwise codeword combinations, find the codewords that won't cause clonality issues (i.e. can't be A, B or C in the equation above with any of the other codewords), just take those.  The number will probably be low.  
-    #   2. Any other sensible algorithms for doing this?  See Clonality section of notes.txt.
+    #  * Any other sensible algorithms for doing this?  See Clonality section of notes.txt. - I had some new ideas...
 
 
 class Testing_Binary_codeword(unittest.TestCase):
@@ -349,11 +416,24 @@ class Testing_Binary_codeword(unittest.TestCase):
         self.assertEqual(Binary_codeword('111').string(), '111')
         self.assertEqual(Binary_codeword('111').list(), [1,1,1])
 
+
+class Testing_other_functions(unittest.TestCase):
+    """ Testing functions that aren't part of either of the main classes."""
+    
     def test_Hamming_distance_calculation(self):
         self.assertEqual(Hamming_distance(Binary_codeword('000'),Binary_codeword('000')), 0)
         self.assertEqual(Hamming_distance(Binary_codeword('111'),Binary_codeword('000')), 3)
         self.assertEqual(Hamming_distance(Binary_codeword('101'),Binary_codeword('000')), 2)
         self.assertEqual(Hamming_distance(Binary_codeword('101'),Binary_codeword('010')), 3)
+
+    def test_bit_change_count(self):
+        assert bit_change_count(Binary_codeword('000'),Binary_codeword('000')) == (0,0)
+        assert bit_change_count(Binary_codeword('111'),Binary_codeword('000')) == (0,3)
+        assert bit_change_count(Binary_codeword('000'),Binary_codeword('111')) == (3,0)
+        assert bit_change_count(Binary_codeword('101'),Binary_codeword('000')) == (0,2)
+        assert bit_change_count(Binary_codeword('000'),Binary_codeword('101')) == (2,0)
+        assert bit_change_count(Binary_codeword('101'),Binary_codeword('010')) == (1,2)
+        assert bit_change_count(Binary_codeword('010'),Binary_codeword('101')) == (2,1)
 
 
 class Testing_Binary_code(unittest.TestCase):
@@ -361,6 +441,7 @@ class Testing_Binary_code(unittest.TestCase):
 
     # MAYBE-TODO convert all the assert statements to self.assertEqual or self.assertTrue or such? 
     #   That's the way unittest functions should be written, but the current version works too...
+    #   I could probably just use nosetest if I wanted - that catches normal assert statements too. 
 
     def test_creation_from_list_and_properties(self):
         B = Binary_code(3,['110','101','011','000'])
@@ -513,6 +594,58 @@ class Testing_Binary_code(unittest.TestCase):
         try:            B20_new = Binary_code(20,val=infile2,method='listfile',expected_count=2**10)
         except IOError: sys.exit("Couldn't find input file %s to run list file test."%infile2)
         assert B20_new == B20
+
+    def test_clonality_count_conflicts(self):
+        # defining the binary codewords so I can use them to check that the results are right
+        [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
+        [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
+        [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
+        B = Binary_code(3,[b110,b101,b011,b000])
+        assert B.clonality_count_conflicts(0,0,False) == {0:set([b110,b101,b011,b000])}
+        print B.clonality_count_conflicts(0,0,True)
+        assert B.clonality_count_conflicts(0,0,True) == {1:set([b110,b101,b011]),3:set([b000])}
+        C = Binary_code(3,[b110,b101,b011])
+        assert C.clonality_count_conflicts(0,0,False) == {0:set([b110,b101,b011])}
+        assert C.clonality_count_conflicts(0,0,True) == {0:set([b110,b101,b011])}
+        assert C.clonality_count_conflicts(1,0,False) == {0:set([b110,b101,b011])}
+        assert C.clonality_count_conflicts(0,1,False) == {3:set([b110,b101,b011])}
+        D = Binary_code(2,[b11,b10,b01,b00])
+        assert D.clonality_count_conflicts(0,0,False) == {0:set([b00]),1:set([b11,b10,b01])}
+        assert D.clonality_count_conflicts(0,0,True) == {3:set([b00,b10,b01]),4:set([b11])}
+        E = Binary_code(2,[b11,b00])
+        assert E.clonality_count_conflicts(0,0,False) == {0:set([b11,b00])}
+        assert E.clonality_count_conflicts(0,0,True) == {1:set([b11,b00])}
+        F = Binary_code(3,[b001,b010,b100,b111])
+        assert F.clonality_count_conflicts(0,0,False) == {0:set([b001,b010,b100,b111])}
+        assert F.clonality_count_conflicts(0,0,True) == {1:set([b001,b010,b100]),3:set([b111])}
+        assert F.clonality_count_conflicts(1,0,False) == {2:set([b001,b010,b100]),3:set([b111])}
+        assert F.clonality_count_conflicts(0,1,False) == {0:set([b001,b010,b100,b111])}
+
+    def test_clonality_naive_reduction(self):
+        # this is pretty much strictly based on the test_clonality_count_conflicts function...
+        # MAYBE-TODO there may be a way of avoiding code duplication here!
+        [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
+        [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
+        [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
+        B = Binary_code(3,[b110,b101,b011,b000])
+        assert B.clonality_naive_reduction(0,0,False) == set([b110,b101,b011,b000])
+        assert B.clonality_naive_reduction(0,0,True) == set()
+        C = Binary_code(3,[b110,b101,b011])
+        assert C.clonality_naive_reduction(0,0,False) == set([b110,b101,b011])
+        assert C.clonality_naive_reduction(0,0,True) == set([b110,b101,b011])
+        assert C.clonality_naive_reduction(1,0,False) == set([b110,b101,b011])
+        assert C.clonality_naive_reduction(0,1,False) == set()
+        D = Binary_code(2,[b11,b10,b01,b00])
+        assert D.clonality_naive_reduction(0,0,False) == set([b00])
+        assert D.clonality_naive_reduction(0,0,True) == set()
+        E = Binary_code(2,[b11,b00])
+        assert E.clonality_naive_reduction(0,0,False) == set([b11,b00])
+        assert E.clonality_naive_reduction(0,0,True) == set()
+        F = Binary_code(3,[b001,b010,b100,b111])
+        assert F.clonality_naive_reduction(0,0,False) == set([b001,b010,b100,b111])
+        assert F.clonality_naive_reduction(0,0,True) == set()
+        assert F.clonality_naive_reduction(1,0,False) == set()
+        assert F.clonality_naive_reduction(0,1,False) == set([b001,b010,b100,b111])
 
 
 if __name__=='__main__':
