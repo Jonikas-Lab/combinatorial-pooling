@@ -118,6 +118,53 @@ def bit_change_count(val1,val2):
     count_1_to_0 = val1&(~val2)
     return count_0_to_1.weight(), count_1_to_0.weight()
 
+def _change_positions_to_value(val, max_N_changes, allowed_change_positions=None):
+    """ 
+    val must be a list of 0/1 ints. """
+    try:                    val[0]
+    except TypeError:       raise ValueError("val has to be a list of 0/1 ints!")
+    if not val[0] in [0,1]: raise ValueError("val has to be a list of 0/1 ints!")
+    # if no allowed_change_positions was given, assume all positions are allowed
+    if allowed_change_positions is None:
+        allowed_change_positions = range(len(val))
+    new_value_set = set()
+    for N_changes in range(max_N_changes+1):
+        for change_positions in combinations(allowed_change_positions,N_changes):
+            new_val = val
+            for pos in change_positions:
+                new_val[pos] = int(not val[pos])
+                new_value_set.add(new_val)
+    return new_value_set
+    # TODO add to unit tests!
+
+def expand_by_all_mutations(codeword_set, N_permitted_changes):
+    """ Return set of all codewords distant from codeword_set  by at most the given number changes.
+    N_permitted_changes can be given either as a single value, or as a (N_1_to_0_changes, N_0_to_1_changes) tuple."""
+    expanded_codeword_set = set()
+
+    if isinstance(N_permitted_changes,tuple):
+        (permitted_1_to_0_changes,permitted_0_to_1_changes) = N_permitted_changes
+        for codeword in codeword_set:
+            # change all possible combinations of 1s to 0s up to the allowed limit
+            list_of_1_positions = [x for x in range(len(codeword)) if codeword.list()[x]==1]
+            new_val_halfway_set = _change_positions_to_value(codeword.list(),permitted_1_to_0_changes,list_of_1_positions)
+            # now take each of the resulting values and change all possible combinations of 0s up to the allowed limit
+            for new_val in new_val_halfway_set:
+                list_of_0_positions = [x for x in range(len(new_val)) if new_val[x]==0]
+                new_val_full_set = _change_positions_to_value(new_val, permitted_0_to_1_changes, list_of_0_positions)
+                expanded_codeword_set += set([Binary_codeword(new_val) for new_val in new_val_full_set])
+
+    elif isinstance(N_permitted_changes,int):
+        for codeword in codeword_set:
+            # change all possible combinations of positions (0s or 1s, all positions are allowed)
+            new_val_full_set = _change_positions_to_value(codeword.list(),N_permitted_changes)
+            expanded_codeword_set += set([Binary_codeword(new_val) for new_val in new_val_full_set])
+    else:
+        raise ValueError("N_permitted_changes must be an int or a tuple of two ints!")
+
+    return expanded_codeword_set
+    # TODO add to unit tests!
+
 
 ### Binary code (set of binary strings) representation
 
@@ -302,41 +349,24 @@ class Binary_code:
         Codewords with 0 conflicts are guaranteed not to generate problems, but nothing very useful can be said about
          how many and which of the ones with low counts could be added to that set without generating clonality issues.
         """
-        # TODO this is really insanely slow!!  There's probably a way to speed it up...
-        #   * can definitely speed up the version with default arguments by just going over all A,B pairs and checking for set membership of the result in the set of codewords.  DONE
-        #   * when the arguments AREN'T 0, could speed it up (at the cost of memory) by generating a set of all disallowed clonality-products based on the set of all codewords, and then going over all A,B combinations and checking for membership in that set...  Yeah, seems like a better idea, doesn't it. 
-        #       so TODO need to implement a way of making a set of all possible changed versions of a codeword, given the number of allowed 0-to-1 and 1-to-0 changes. All right.
         codeword_to_conflict_count = dict([(codeword,0) for codeword in self.codewords])
-        if permitted_1_to_0_changes==0 and permitted_0_to_1_changes==0:
-            for A,B in combinations(self.codewords,2):
-                clonality_signature = A|B
-                # first check the A+B=A special case:  if count_self_conflict is true, give A and B one conflict count 
-                #   (not 2 and 1 as the stadard case would), otherwise do go on to the A+B=C check.
-                if clonality_signature in [A,B]:
-                    if count_self_conflict:
-                        for codeword in A,B:
-                            codeword_to_conflict_count[codeword] += 1
-                # now check the other codewords (note that this won't trigger for A+B=A because it's an elif)
-                elif clonality_signature in self.codewords:
-                    for codeword in A,B,clonality_signature:
+        for A,B in combinations(self.codewords,2):
+            clonality_result = A|B
+            # expand_by_all_mutations takes a set of codewords and returns all codewords that are too close to them
+            #   to be allowed as a clonality_result given the allowed # changes based on arguments. 
+            #   I'm doing it that way because it's painfully slow otherwise.
+            # First check the A+B=A special case:  if count_self_conflict is true, give A and B one conflict count 
+            #   (not 2 and 1 as the stadard case would), otherwise do go on to the A+B=C check.
+            if clonality_result in expand_by_all_mutations([A,B], permitted_1_to_0_changes, permitted_0_to_1_changes):
+                if count_self_conflict:
+                    for codeword in A,B:
                         codeword_to_conflict_count[codeword] += 1
-        else:
-            for A,B,C in permutations(self.codewords,3):
-                # the order of A,B doesn't matter, so skip half; the order of C does.
-                if A<B:     continue
-                clonality_signature = A|B
-                changes_0_to_1, changes_1_to_0 = bit_change_count(C,A|B)
-                if changes_0_to_1 <= permitted_0_to_1_changes and changes_1_to_0 <= permitted_1_to_0_changes:
-                    for codeword in A,B,C:
-                        codeword_to_conflict_count[codeword] += 1
-            # Do we want to count A+B=A as a problem, like A+B=C?  Optional separate routine.
-            if count_self_conflict:
-                for A,B in permutations(self.codewords,2):
-                    clonality_signature = A|B
-                    changes_0_to_1, changes_1_to_0 = bit_change_count(A,A|B)
-                    if changes_0_to_1 <= permitted_0_to_1_changes and changes_1_to_0 <= permitted_1_to_0_changes:
-                        for codeword in A,B:
-                            codeword_to_conflict_count[codeword] += 1
+            # Now check the other codewords (note that this won't trigger for A+B=A because it's an elif)
+            elif clonality_result in expand_by_all_mutations(self.codewords, permitted_1_to_0_changes, 
+                                                                permitted_0_to_1_changes):
+                for codeword in A,B,clonality_result:
+                    codeword_to_conflict_count[codeword] += 1
+                    # TODO this won't work right: clonality_result may be 110 but the actual codeword that's causing the conflict can be 111, if permitted_1_to_0_changes>0, and it won't be counted correctly!  dammit... Looks like expand_by_all_mutations needs to return a new_value:base_value dictionary, and base_value should actually be a list, since 110,101 and 011 can all yield 111 with a single 0->1 change and so they should ALL be penalized if this comes up!
         # now generate the final conflict_count:codeword_set dictionary from the codeword:conflict_count one
         conflict_count_to_codeword_set = defaultdict(lambda: set())
         for (codeword,conflict_count) in codeword_to_conflict_count.iteritems():
