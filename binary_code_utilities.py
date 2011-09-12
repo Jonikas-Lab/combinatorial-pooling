@@ -136,6 +136,7 @@ def _change_all_position_combinations(val, max_N_changes, allowed_change_positio
         allowed_change_positions = range(len(val))
     new_value_set = set()
     for N_changes in range(max_N_changes+1):
+        if N_changes>len(allowed_change_positions): break   # this is necessary in 2.6.1 but not 2.6.5...
         for change_positions in itertools.combinations(allowed_change_positions,N_changes):
             new_val = list(val)
             for pos in change_positions:
@@ -291,7 +292,8 @@ class Binary_code:
     # NOTE: comparison and hashing are related and need to match!  See notes in Binary_codeword.
     def __eq__(self,other):     return self.codewords == other.codewords
     def __ne__(self,other):     return self.codewords != other.codewords
-    def __hash__(self):         return hash(self.codewords)
+    # MAYBE-TODO this hashing solution is dangerous, since technically codeword sets ARE mutable... Hmmmm...
+    #def __hash__(self):         return hash(frozenset(self.codewords))      
 
     def find_Hamming_distance_range(self):
         """ Return a tuple containing the lowest and highest Hamming distance between all codeword pairs."""
@@ -369,6 +371,7 @@ class Binary_code:
 
         codeword_to_conflict_count = dict([(codeword,0) for codeword in self.codewords])
         # Special case just for 0,0, arguments because the normal way is SLOW
+        # MAYBE-TODO it would be better code if the special case wasn't here... But it is faster than the general case.
         if N_allowed_changes in [0, (0,0)]:
             for A,B in itertools.combinations(self.codewords,2):
                 clonality_result = A|B
@@ -384,7 +387,8 @@ class Binary_code:
 
         # Now the standard case, for when the allowed change count arguments aren't 0: 
         #   pre-calculate a pool of all illegal clonality results based on all the codewords and check against that.
-        # TODO why is this still so much slower than the special case version, even with 0,0 arguments?  Is it the set operations? Ir is it that much slower at all, really?...
+        # MAYBE-TODO why is this still so much slower than the special case version, even with 0,0 arguments?  
+        #   Is it the set operations? Ir is it that much slower at all, really?... Do I care enough to fix it?
         expanded_conflict_values = expand_by_all_mutations_dict(self.codewords, N_allowed_changes)
         for A,B in itertools.combinations(self.codewords,2):
             clonality_result = A|B
@@ -403,8 +407,20 @@ class Binary_code:
         # now generate the final conflict_count:codeword_set dictionary from the codeword:conflict_count one
         conflict_count_to_codeword_set = invert_dict_tolists(codeword_to_conflict_count)
         return conflict_count_to_codeword_set
-        # TODO I suppose I should test it on the extended Wagner code to see if my results are the same as Goodman2009...
+        # TODO I suppose I should test it on the extended Wagner code to see if my results are the same as Goodman2009... It runs overnight, and it claims 0 non-conflict codewords even at 0 changes - whaaaaaaat?  Should I spend more time looking into that?  I do get the actual list of codewords from Goodman2009 in one of their supplementary info things - I could check that?  Maybe just until the first few conflicts using the simpler method, since it's sloooow?
         #   remember to remove the all-zero codeword first!
+        # TODO look at the results in server:/Users/wpatena/combinatorial_pooling_2011-09-12/code/conflict_data_output_* files!  How come 0 and (1,0) and (2,0) have the same numbers of no-conflict codewords?  STRANGE...  Am I sure that's right?  Test it on smaller cases with simpler code or something?  Test on more codes with D=6?  Talk to Martin about it?...  OH, I think they all have the same bit sum!!  All right, now I think we're getting somewhere...  But it's not ALL the 10-sum ones, only about 1/3 of them - why is that?  Interesting - think about it more... In any case, it looks like the result of this method is a subset of the bit-sum-limit method, so that's good to know.  Or at least that's the case for B19 and B20 - really need to try more examples!  Apparently very different for B24?
+
+
+    def clonality_conflict_check(self, N_allowed_changes=(0,0), count_self_conflict=False):
+        """ Return False of the code contains no clonality conflicts based on arguments, True otherwise.
+        Passes all its arguments to clonality_count_conflicts - see that function's docstring for details."""
+        # MAYBE-TODO could rewrite this to be much faster by writing it separately and having it just go on until
+        #   the first conflict and then return True, instead of using clonality_count_conflicts and thus needing to
+        #   go through all the combinations, but I'm not sure it's worth it.
+        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflict)
+        if conflict_count_to_codeword_set.keys() == [0]:    return False
+        else:                                               return True
 
     def clonality_naive_reduction(self, N_allowed_changes=(0,0), count_self_conflict=False):
         """ Naive solution of the clonality problem, as in Goodman2009: return a set of codewords with 0 conflicts, 
@@ -413,10 +429,8 @@ class Binary_code:
         try:                return conflict_count_to_codeword_set[0]
         except KeyError:    return set()
 
-    # TODO implement a simple clonality check to see whether there are ANY conflicts in the code (baed on self.clonality_count_conflicts)
-
     def reduce_by_Hamming_distance(self,low,high,min_count):
-        """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-hig range. """
+        """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-high range."""
         pass
         # MAYBE-TODO implement using clique_find.py
 
@@ -508,7 +522,6 @@ class Testing_other_functions(unittest.TestCase):
         assert _change_all_position_combinations([0,0], 1, None) == set([(0,0),(0,1),(1,0)])
 
     def test_expand_by_all_mutations(self):
-        # MAYBE-TODO there's a lot of code repetition here... Consolidate somehow?
         [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
         all_test_codewords = set([b11,b10,b01,b00])
         single_value_results = dict()
@@ -716,58 +729,50 @@ class Testing_Binary_code(unittest.TestCase):
         except IOError: sys.exit("Couldn't find input file %s to run list file test."%infile2)
         assert B20_new == B20
 
-    def test_clonality_count_conflicts(self):
+    def test_clonality_count_conflicts_and_derivatives(self):
+        """ Tests clonality_count_conflicts, clonality_naive_reduction, and clonality_conflict_check (since those 
+        functions are trivially derived from clonality_count_conflicts and are easiest to test with the same setup)"""
         # defining the binary codewords so I can use them to check that the results are right
         [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
         [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
         [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
         B = Binary_code(3,[b110,b101,b011,b000])
-        assert B.clonality_count_conflicts((0,0),False) == {0:set([b110,b101,b011,b000])}
-        assert B.clonality_count_conflicts((0,0),True) == {1:set([b110,b101,b011]),3:set([b000])}
         C = Binary_code(3,[b110,b101,b011])
-        assert C.clonality_count_conflicts((0,0),False) == {0:set([b110,b101,b011])}
-        assert C.clonality_count_conflicts((0,0),True) == {0:set([b110,b101,b011])}
-        assert C.clonality_count_conflicts((1,0),False) == {0:set([b110,b101,b011])}
-        assert C.clonality_count_conflicts((0,1),False) == {3:set([b110,b101,b011])}
         D = Binary_code(2,[b11,b10,b01,b00])
-        assert D.clonality_count_conflicts((0,0),False) == {0:set([b00]),1:set([b11,b10,b01])}
-        assert D.clonality_count_conflicts((0,0),True) == {3:set([b00,b10,b01]),4:set([b11])}
         E = Binary_code(2,[b11,b00])
-        assert E.clonality_count_conflicts((0,0),False) == {0:set([b11,b00])}
-        assert E.clonality_count_conflicts((0,0),True) == {1:set([b11,b00])}
         F = Binary_code(3,[b001,b010,b100,b111])
-        assert F.clonality_count_conflicts((0,0),False) == {0:set([b001,b010,b100,b111])}
-        assert F.clonality_count_conflicts((0,0),True) == {1:set([b001,b010,b100]),3:set([b111])}
-        assert F.clonality_count_conflicts((1,0),False) == {2:set([b001,b010,b100]),3:set([b111])}
-        assert F.clonality_count_conflicts((0,1),False) == {0:set([b001,b010,b100,b111])}
-        # TODO add tests with a single value instead of a tuple for N_allowed_changes
-
-    def test_clonality_naive_reduction(self):
-        # this is pretty much strictly based on the test_clonality_count_conflicts function...
-        # MAYBE-TODO there may be a way of avoiding code duplication here!
-        [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
-        [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
-        [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
-        B = Binary_code(3,[b110,b101,b011,b000])
-        assert B.clonality_naive_reduction((0,0),False) == set([b110,b101,b011,b000])
-        assert B.clonality_naive_reduction((0,0),True) == set()
-        C = Binary_code(3,[b110,b101,b011])
-        assert C.clonality_naive_reduction((0,0),False) == set([b110,b101,b011])
-        assert C.clonality_naive_reduction((0,0),True) == set([b110,b101,b011])
-        assert C.clonality_naive_reduction((1,0),False) == set([b110,b101,b011])
-        assert C.clonality_naive_reduction((0,1),False) == set()
-        D = Binary_code(2,[b11,b10,b01,b00])
-        assert D.clonality_naive_reduction((0,0),False) == set([b00])
-        assert D.clonality_naive_reduction((0,0),True) == set()
-        E = Binary_code(2,[b11,b00])
-        assert E.clonality_naive_reduction((0,0),False) == set([b11,b00])
-        assert E.clonality_naive_reduction((0,0),True) == set()
-        F = Binary_code(3,[b001,b010,b100,b111])
-        assert F.clonality_naive_reduction((0,0),False) == set([b001,b010,b100,b111])
-        assert F.clonality_naive_reduction((0,0),True) == set()
-        assert F.clonality_naive_reduction((1,0),False) == set()
-        assert F.clonality_naive_reduction((0,1),False) == set([b001,b010,b100,b111])
-        # TODO add tests with a single value instead of a tuple for N_allowed_changes
+        expected_result_list = []
+        expected_result_list.append((B,0,False, {0:set([b110,b101,b011,b000])} ))
+        expected_result_list.append((B,0,True,  {1:set([b110,b101,b011]),3:set([b000])} ))
+        expected_result_list.append((B,(0,0),False, {0:set([b110,b101,b011,b000])} ))
+        expected_result_list.append((B,(0,0),True,  {1:set([b110,b101,b011]),3:set([b000])} ))
+        expected_result_list.append((C,0,False, {0:set([b110,b101,b011])} ))
+        expected_result_list.append((C,0,True,  {0:set([b110,b101,b011])} ))
+        expected_result_list.append((C,1,False, {3:set([b110,b101,b011])} ))
+        expected_result_list.append((C,(0,0),False, {0:set([b110,b101,b011])} ))
+        expected_result_list.append((C,(0,0),True,  {0:set([b110,b101,b011])} ))
+        expected_result_list.append((C,(1,0),False, {0:set([b110,b101,b011])} ))
+        expected_result_list.append((C,(0,1),False, {3:set([b110,b101,b011])} ))
+        expected_result_list.append((D,0,False, {0:set([b00]),1:set([b11,b10,b01])} ))
+        expected_result_list.append((D,0,True,  {3:set([b00,b10,b01]),4:set([b11])} ))
+        expected_result_list.append((D,(0,0),False, {0:set([b00]),1:set([b11,b10,b01])} ))
+        expected_result_list.append((D,(0,0),True,  {3:set([b00,b10,b01]),4:set([b11])} ))
+        expected_result_list.append((E,0,False, {0:set([b11,b00])} ))
+        expected_result_list.append((E,0,True,  {1:set([b11,b00])} ))
+        expected_result_list.append((E,(0,0),False, {0:set([b11,b00])} ))
+        expected_result_list.append((E,(0,0),True,  {1:set([b11,b00])} ))
+        expected_result_list.append((F,0,False, {0:set([b001,b010,b100,b111])} ))
+        expected_result_list.append((F,0,True,  {1:set([b001,b010,b100]),3:set([b111])} ))
+        expected_result_list.append((F,1,False, {2:set([b001,b010,b100]),3:set([b111])} ))
+        expected_result_list.append((F,(0,0),False, {0:set([b001,b010,b100,b111])} ))
+        expected_result_list.append((F,(0,0),True,  {1:set([b001,b010,b100]),3:set([b111])} ))
+        expected_result_list.append((F,(1,0),False, {2:set([b001,b010,b100]),3:set([b111])} ))
+        expected_result_list.append((F,(0,1),False, {0:set([b001,b010,b100,b111])} ))
+        for (code,N_changes,self_conflict,result) in expected_result_list:
+            assert code.clonality_count_conflicts(N_changes,self_conflict) == result
+            if 0 in result:     assert code.clonality_naive_reduction(N_changes,self_conflict) == result[0]
+            else:               assert code.clonality_naive_reduction(N_changes,self_conflict) == set()
+            assert code.clonality_conflict_check(N_changes,self_conflict) == False if result.keys==[0] else True
 
 
 if __name__=='__main__':
