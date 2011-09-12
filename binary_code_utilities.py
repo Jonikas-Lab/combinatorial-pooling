@@ -366,10 +366,7 @@ class Binary_code:
         Codewords with 0 conflicts are guaranteed not to generate problems, but nothing very useful can be said about
          how many and which of the ones with low counts could be added to that set without generating clonality issues.
         """
-        # Note: expand_by_all_mutations_dict takes a set of codewords and returns a dict where they keys are all 
-        #   codewords that are too close to them to be allowed as a clonality_result given the allowed # changes,
-        #   and the values are the list of base codewords that these result codewords are too close to.
-        #   I'm doing it that way because it's painfully slow otherwise.
+        # TODO whould probably rewrite this to take an N_allowed_changes tuple  the way expand_by_all_mutations_dict does, to allow for either a total mutation limit or separate limits on 0-to-1 and 1-to-0 - no reason not to.
 
         codeword_to_conflict_count = dict([(codeword,0) for codeword in self.codewords])
         # Special case just for 0,0, arguments because the normal way is SLOW
@@ -386,19 +383,23 @@ class Binary_code:
             conflict_count_to_codeword_set = invert_dict_tolists(codeword_to_conflict_count)
             return conflict_count_to_codeword_set
 
-        # Now the standard case
-        # TODO why is this still so slow?  I suppose part of the issue is that I'm generating a new expanded_conflict_values set every time, which is sort of ridiculous.  Yeah, that's probably it.
+        # Now the standard case, for when the allowed change count arguments aren't 0: 
+        #   pre-calculate a pool of all illegal clonality results based on all the codewords and check against that.
+        # TODO why is this still so much slower than the special case version, even with 0,0 arguments?  Is it the set operations? Ir is it that much slower at all, really?...
+        expanded_conflict_values = expand_by_all_mutations_dict(self.codewords, 
+                                                                (permitted_1_to_0_changes,permitted_0_to_1_changes))
         for A,B in itertools.combinations(self.codewords,2):
             clonality_result = A|B
-            # 1. Check for conflict with all codewords C that aren't A or B
-            expanded_conflict_values = expand_by_all_mutations_dict(self.codewords-set([A,B]), 
-                                                                    (permitted_1_to_0_changes,permitted_0_to_1_changes))
-            if clonality_result in expanded_conflict_values.keys(): 
-                for codeword in expanded_conflict_values[clonality_result].union(set([A,B])):
-                    codeword_to_conflict_count[codeword] += 1
-            # 2. If count_self_conflict is True, check the A+B=A special case; give A and B one count each if it matches.
-            if count_self_conflict:
-                if clonality_result in expand_by_all_mutations([A,B], (permitted_1_to_0_changes,permitted_0_to_1_changes)):
+            if clonality_result in expanded_conflict_values: 
+                # if the list of base codewords for the conflict contains codewords other than A and B, 
+                #   register a conflict for A, B and all the base codewords
+                #    (doing a set union ensures that even if A/B were among the base codewords, they only get one conflict)
+                if len(expanded_conflict_values[clonality_result]-set([A,B]))>0:
+                    for codeword in expanded_conflict_values[clonality_result].union(set([A,B])):
+                        codeword_to_conflict_count[codeword] += 1
+                # if the list of base codewords for the conflict was only A/B, 
+                #   only register a conflict is count_self_conflict is True
+                elif count_self_conflict:
                     for codeword in A,B:
                         codeword_to_conflict_count[codeword] += 1
         # now generate the final conflict_count:codeword_set dictionary from the codeword:conflict_count one
