@@ -691,15 +691,13 @@ if __name__=='__main__':
 
     # Unit-testing - don't even look for more options/arguments, just run the test suite
     if options.test_functionality:
-        print("*** You used the -t option - ignoring all other options/arguments (except -T), "
+        print("*** You used the -t option - ignoring all other options/arguments (including -T), "
               + "running the built-in simple test suite.")
         print("Defined plate sizes: %s"%plate_sizes)
         # tun unittest.main, passing it no arguments (by default it takes sys.argv and complains about the -t)
         unittest.main(argv=[sys.argv[0]])
-        test_functionality()
-        # if not doing a test run, exit now; doing a normal run after unit-testing isn't allowed, but doing a test run is.
-        if not options.test_run:
-            sys.exit(0)
+        # MAYBE-TODO unittest.main automatically quits - there's no way of doing -t and -T at once.  Do I care?
+        #   may be fixed in a future version, and there is a patch: http://bugs.python.org/issue3379
 
 
     if options.test_run:
