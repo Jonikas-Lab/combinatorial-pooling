@@ -722,7 +722,7 @@ if __name__=='__main__':
             (options, args) = parser.parse_args(test_run.split())
             run_main_function(parser,options,args)
         print("*** Test runs finished. If you didn't get any errors, that's good (warnings are all right). "
-              + "Check the output files to make sure.")
+              + "Check the output files to make sure they look reasonable (this is NOT done automatically!).")
         sys.exit(0)
 
     # If it's not a test run, just run the main functionality
