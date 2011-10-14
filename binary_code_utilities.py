@@ -609,8 +609,8 @@ class Testing__other_functions(unittest.TestCase):
 
 
 
-class Testing__Binary_code(unittest.TestCase):
-    """ Testing Binary_code functionality. """
+class Testing__Binary_code__most_functions(unittest.TestCase):
+    """ Testing Binary_code functionality, except for clonality-conflict functions, which have their own test suite."""
 
     # MAYBE-TODO convert all the assert statements to self.assertEqual or self.assertTrue or such? 
     #   That's the way unittest functions should be written, but the current version works too...
@@ -775,26 +775,27 @@ class Testing__Binary_code(unittest.TestCase):
         except IOError: sys.exit("Couldn't find input file %s to run list file test."%infile2)
         assert B20_new == B20
 
-    def test__clonality_count_conflicts_and_derivatives(self):
-        """ Tests clonality_count_conflicts, clonality_naive_reduction, and clonality_conflict_check (since those 
-        functions are trivially derived from clonality_count_conflicts and are easiest to test with the same setup)"""
-        # defining the binary codewords so I can use them to check that the results are right
-        [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
-        [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
-        [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
-        data_and_outputs = []
-        ### for empty code, test all option combinations
+class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
+    """ Tests clonality_count_conflicts, clonality_naive_reduction, and clonality_conflict_check (since those 
+    functions are trivially derived from clonality_count_conflicts and are easiest to test with the same setup)"""
+
+    def test__empty_code_gives_no_conflicts(self):
+        """ Empty codes should return no conflicts with all option combinations."""
         A = Binary_code(3,[])
         for SC,RZ in [(True,True,),(True,False),(False,True),(False,False)]:
             for N_changes in [0,2,(0,0),(1,0),(0,1),(3,3),(1,10)]:
                 assert A.clonality_count_conflicts(N_changes,SC,RZ,return_conflict_details=True,quiet=True) == ({},set())
                 assert A.clonality_naive_reduction(N_changes,SC,RZ,quiet=True) == set()
                 assert A.clonality_conflict_check(N_changes,SC,RZ,quiet=True) == False 
-        ### making sure count_self_conflicts and remove_all_zero_codeword work - only doing this once!  
+
+    def test__count_self_conflicts__and__remove_all_zero_codeword(self):
+        """ testing that count_self_conflicts and remove_all_zero_codeword work, with N_allowed_changes 0."""
+        # defining the binary codewords so I can use them to check that the results are right
+        [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
         # with no self-conflict counted, whether or not all-zero codeword is removed - no conflicts
         B = Binary_code(3,[b110,b101,b011,b000])
-        full_set = set([b110,b101,b011,b000])
-        set_no_zero = set([b110,b101,b011])
+        full_set = frozenset([b110,b101,b011,b000])
+        set_no_zero = frozenset([b110,b101,b011])
         for RZ,out_set in [(False,full_set), (True,set_no_zero)]:
             assert B.clonality_count_conflicts(0,False,RZ,return_conflict_details=True,quiet=True) == ({0:out_set}, set())
             assert B.clonality_naive_reduction(0,False,RZ,quiet=True) == out_set
@@ -810,9 +811,29 @@ class Testing__Binary_code(unittest.TestCase):
         assert B.clonality_count_conflicts(0,True,True,return_conflict_details=True,quiet=True) == ({0:set_no_zero}, set())
         assert B.clonality_naive_reduction(0,True,True,quiet=True) == set_no_zero
         assert B.clonality_conflict_check(0,True,True,quiet=True) == False 
-        ### testing count_self_conflicts with N_allowed_changes other than 0; remove_all_zero_codeword not involved
+
+    def test__count_self_conflicts__allowed_changes_zero(self):
+        """ testing count_self_conflicts with N_allowed_changes 0 but without involving the all-zero codeword."""
+        # defining the binary codewords so I can use them to check that the results are right
+        [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
+        C = Binary_code(2,[b01,b11])
+        full_set = frozenset([b01,b11])
+        # with no self-conflict - no conflicts
+        assert C.clonality_count_conflicts(0,False,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
+        assert C.clonality_naive_reduction(0,False,quiet=True) == full_set
+        assert C.clonality_conflict_check(0,False,quiet=True) == False 
+        # with self-conflict on - conflicts!
+        conflicts = set([(full_set,b11,b11,'self',0)])
+        assert C.clonality_count_conflicts(0,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
+        assert C.clonality_naive_reduction(0,True,quiet=True) == set()
+        assert C.clonality_conflict_check(0,True,quiet=True) == True 
+
+    def test__count_self_conflicts__allowed_changes_nonzero(self):
+        """ testing count_self_conflicts with N_allowed_changes other than 0; remove_all_zero_codeword not involved."""
+        # defining the binary codewords so I can use them to check that the results are right
+        [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
         C = Binary_code(2,[b01,b10])
-        full_set = set([b01,b10])
+        full_set = frozenset([b01,b10])
         # with 0 allowed 0-to-1 changes - no conflicts even with self-conflict on
         for NC in [0,(0,0),(1,0),(2,0),(9,0)]:
             assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
@@ -825,11 +846,18 @@ class Testing__Binary_code(unittest.TestCase):
             assert C.clonality_conflict_check(NC,False,quiet=True) == False 
         # with at least one allowed 0-to-1 change and self-conflict on - conflicts!
         for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
-            conflicts = set([(frozenset([b01,b10]),b11,frozenset([b01,b10]),'self',NC)])
+            conflicts = set([(full_set,b11,full_set,'self',NC)])
             assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
             assert C.clonality_naive_reduction(NC,True,quiet=True) == set()
             assert C.clonality_conflict_check(NC,True,quiet=True) == True 
         ### All further testing will be done with count_self_conflict and remove_all_zero_codeword set to False. 
+
+    def test__(self):
+        # defining the binary codewords so I can use them to check that the results are right
+        [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
+        [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
+        [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
+        data_and_outputs = []
         if False:
             # old version without return_conflict_details, TODO reimplement!  Maybe split into a separate function?
             # TODO I probably don't need THIS many tests, anyway...?
