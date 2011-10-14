@@ -371,9 +371,10 @@ class Binary_code:
          otherwise it'll conflict with everything (a warning will be printed).
         Codewords with 0 conflicts are guaranteed not to generate problems, but nothing very useful can be said about
          how many and which of the ones with low counts could be added to that set without generating clonality issues.
-        The last two arguments allow printing and/or returning of detailed conflict data - a set of (A,B,A|B,C,s) tuples, 
-         where A and B are two codewords in the code, A|B is their clonality result, C is the set of codewords
-          that A|B conflicts with (i.e. is too close to, based on N_allowed_changes), s says if it's a self-conflict.
+        The last two arguments allow printing and/or returning of detailed conflict data - a set of (A,B,A|B,C,s,n) 
+         tuples, where A and B are two codewords in the code, A|B is their clonality result, C is the set of codewords
+          that A|B conflicts with (i.e. is too close to, based on N_allowed_changes), s is 'self-conflict' if it was 
+          a self-conflict and '' otherwise, and n is N_allowed_changes (since I don't have the real N_changes available).
         """
 
         # deal with all-zero codeword: remove if requested, print warning if it's False and count_self_conflict is True
@@ -402,12 +403,12 @@ class Binary_code:
                     if count_self_conflict:
                         for codeword in A,B:
                             codeword_to_conflict_count[codeword] += 1
-                        conflict_details = (A,B,clonality_result,'self-conflict')
+                        conflict_details = (A,B,clonality_result,'self-conflict',N_allowed_changes)
                 # if clonality_result is an existing codeword (that's not A or B), add a conflict count
                 elif clonality_result in self.codewords: 
                     for codeword in [A,B,clonality_result]:
                         codeword_to_conflict_count[codeword] += 1
-                    conflict_details = (A,B,clonality_result,clonality_result,'')
+                    conflict_details = (A,B,clonality_result,clonality_result,'',N_allowed_changes)
                 if conflict_details and print_conflict_details:     print conflict_details
                 if conflict_details and return_conflict_details:    all_conflict_details.add(conflict_details)
 
@@ -428,14 +429,14 @@ class Binary_code:
                         for codeword in expanded_conflict_values[clonality_result].union(set([A,B])):
                             codeword_to_conflict_count[codeword] += 1
                         conflict_set = expanded_conflict_values[clonality_result] - set([A,B])
-                        conflict_details = (A,B,clonality_result,conflict_set,'')
+                        conflict_details = (A,B,clonality_result,conflict_set,'',N_allowed_changes)
                     # if the list of base codewords for the conflict was only A/B, 
                     #   only register a conflict is count_self_conflict is True
                     elif count_self_conflict:
                         for codeword in A,B:
                             codeword_to_conflict_count[codeword] += 1
                         conflict_set = expanded_conflict_values[clonality_result] & set([A,B])
-                        conflict_details = (A,B,clonality_result,conflict_set,'self-conflict',0)
+                        conflict_details = (A,B,clonality_result,conflict_set,'self-conflict',N_allowed_changes)
                 if conflict_details and print_conflict_details:     print conflict_details
                 if conflict_details and return_conflict_details:    all_conflict_details.add(conflict_details)
 
@@ -448,21 +449,21 @@ class Binary_code:
 
 
     def clonality_conflict_check(self, N_allowed_changes=(0,0), count_self_conflict=False, remove_all_zero_codeword=False,
-                                  print_conflict_details=False, return_conflict_details=False, quiet=False):
+                                  print_conflict_details=False, quiet=False):
         """ Return False if the code contains no clonality conflicts based on arguments, True otherwise.
         Passes all its arguments to clonality_count_conflicts - see that function's docstring for details."""
         # MAYBE-TODO could rewrite this to be much faster by writing it separately and having it just go on until
         #   the first conflict and then return True, instead of using clonality_count_conflicts and thus needing to
         #   go through all the combinations, but I'm not sure it's worth it.
-        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflict, remove_all_zero_codeword, print_conflict_details, return_conflict_details, quiet)
+        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflict, remove_all_zero_codeword, print_conflict_details, return_conflict_details=False, quiet=quiet)
         if conflict_count_to_codeword_set.keys() == [0]:    return False
         else:                                               return True
 
     def clonality_naive_reduction(self, N_allowed_changes=(0,0), count_self_conflict=False, remove_all_zero_codeword=False,
-                                  print_conflict_details=False, return_conflict_details=False, quiet=False):
+                                  print_conflict_details=False, quiet=False):
         """ Naive solution of the clonality problem, as in Goodman2009: return a set of codewords with 0 conflicts, 
          as given by clonality_count_conflicts with the same arguments (see that function's docstring for more)."""
-        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflict, remove_all_zero_codeword, print_conflict_details, return_conflict_details, quiet)
+        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflict, remove_all_zero_codeword, print_conflict_details, return_conflict_details=False, quiet=quiet)
         try:                return conflict_count_to_codeword_set[0]
         except KeyError:    return set()
 
