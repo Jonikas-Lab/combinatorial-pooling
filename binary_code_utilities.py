@@ -299,6 +299,8 @@ class Binary_code:
     def find_Hamming_distance_range(self):
         """ Return a tuple containing the lowest and highest Hamming distance between all codeword pairs."""
         # set start lov/high values to impossible extremes to make sure they get overwritten
+        if len(self.codewords)==0:
+            return None,None
         low = self.length+1
         high = 0
         for x,y in itertools.combinations(self.codewords,2):
@@ -476,10 +478,10 @@ class Binary_code:
     #  * Any other sensible algorithms for doing this?  See Clonality section of notes.txt. - I had some new ideas...
 
 
-class Testing_Binary_codeword(unittest.TestCase):
+class Testing__Binary_codeword(unittest.TestCase):
     """ Testing Binary_codeword functionality. """
 
-    def test_creation_value_types(self):
+    def test__creation_value_types(self):
         """ Test Binary_codeword instance initiation with different value types (string, int, list, Binary_codeword) """
         self.assertEqual(Binary_codeword('111').string(), '111')
         self.assertEqual(Binary_codeword(7).string(), '111')
@@ -487,7 +489,7 @@ class Testing_Binary_codeword(unittest.TestCase):
         self.assertEqual(Binary_codeword([True,True,True]).string(), '111')
         self.assertEqual(Binary_codeword(Binary_codeword('111')).string(), '111')
 
-    def test_initiation_length_check_and_padding(self):
+    def test__initiation_length_check_and_padding(self):
         """ Test if Binary_codeword initiation deals with codeword length correctly (length check and padding). """
         #   '111' has length 3, should work (no assert, just making sure it doesn't raise an exception)
         Binary_codeword('111',3,check_length=True)
@@ -501,14 +503,14 @@ class Testing_Binary_codeword(unittest.TestCase):
         #   padding a length-3 string to length 2 should raise an error
         self.assertRaises(BinaryCodeError, Binary_codeword, '111', 2)
 
-    def test_equality_and_comparison_operators(self):
+    def test__equality_and_comparison_operators(self):
         self.assertTrue(Binary_codeword('111') == Binary_codeword('111'))
         self.assertTrue(Binary_codeword('111') != Binary_codeword('101'))
         self.assertTrue(Binary_codeword('111') != Binary_codeword('1110'))
         self.assertTrue(Binary_codeword('111') != Binary_codeword('0111'))
         self.assertTrue(Binary_codeword('101') < Binary_codeword('111'))
 
-    def test_bitwise_operations(self):
+    def test__bitwise_operations(self):
         self.assertEqual(~Binary_codeword('000'), Binary_codeword('111'))
         self.assertEqual(Binary_codeword('110') | Binary_codeword('011'), Binary_codeword('111'))
         self.assertEqual(Binary_codeword('110') & Binary_codeword('011'), Binary_codeword('010'))
@@ -516,30 +518,30 @@ class Testing_Binary_codeword(unittest.TestCase):
         # comparing bitstrings of different lengths should fail
         self.assertRaises(ValueError, Hamming_distance, Binary_codeword('000'), Binary_codeword('0000'))
 
-    def test_length_calculation(self):
+    def test__length_calculation(self):
         self.assertEqual(len(Binary_codeword('111')), 3)
         self.assertEqual(len(Binary_codeword('00000')), 5)
 
-    def test_weight_calculation(self):
+    def test__weight_calculation(self):
         self.assertEqual(Binary_codeword('111').weight(), 3)
         self.assertEqual(Binary_codeword('001').weight(), 1)
         self.assertEqual(Binary_codeword('00000').weight(), 0)
 
-    def test_list_string_representations(self):
+    def test__list_string_representations(self):
         self.assertEqual(Binary_codeword('111').string(), '111')
         self.assertEqual(Binary_codeword('111').list(), [1,1,1])
 
 
-class Testing_other_functions(unittest.TestCase):
+class Testing__other_functions(unittest.TestCase):
     """ Testing functions that aren't part of either of the main classes."""
     
-    def test_Hamming_distance_calculation(self):
+    def test__Hamming_distance_calculation(self):
         self.assertEqual(Hamming_distance(Binary_codeword('000'),Binary_codeword('000')), 0)
         self.assertEqual(Hamming_distance(Binary_codeword('111'),Binary_codeword('000')), 3)
         self.assertEqual(Hamming_distance(Binary_codeword('101'),Binary_codeword('000')), 2)
         self.assertEqual(Hamming_distance(Binary_codeword('101'),Binary_codeword('010')), 3)
 
-    def test_bit_change_count(self):
+    def test__bit_change_count(self):
         assert bit_change_count(Binary_codeword('000'),Binary_codeword('000')) == (0,0)
         assert bit_change_count(Binary_codeword('111'),Binary_codeword('000')) == (0,3)
         assert bit_change_count(Binary_codeword('000'),Binary_codeword('111')) == (3,0)
@@ -548,7 +550,7 @@ class Testing_other_functions(unittest.TestCase):
         assert bit_change_count(Binary_codeword('101'),Binary_codeword('010')) == (1,2)
         assert bit_change_count(Binary_codeword('010'),Binary_codeword('101')) == (2,1)
 
-    def test_change_all_position_combinations(self):
+    def test__change_all_position_combinations(self):
         assert _change_all_position_combinations([1,1], 0, None) == set([(1,1)])
         assert _change_all_position_combinations([1,1], 1, None) == set([(1,1),(0,1),(1,0)])
         assert _change_all_position_combinations([1,1], 2, None) == set([(1,1),(0,1),(1,0),(0,0)])
@@ -559,7 +561,7 @@ class Testing_other_functions(unittest.TestCase):
         assert _change_all_position_combinations([0,0], 0, None) == set([(0,0)])
         assert _change_all_position_combinations([0,0], 1, None) == set([(0,0),(0,1),(1,0)])
 
-    def test_expand_by_all_mutations(self):
+    def test__expand_by_all_mutations(self):
         [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
         all_test_codewords = set([b11,b10,b01,b00])
         single_value_results = dict()
@@ -608,14 +610,21 @@ class Testing_other_functions(unittest.TestCase):
 
 
 
-class Testing_Binary_code(unittest.TestCase):
+class Testing__Binary_code(unittest.TestCase):
     """ Testing Binary_code functionality. """
 
     # MAYBE-TODO convert all the assert statements to self.assertEqual or self.assertTrue or such? 
     #   That's the way unittest functions should be written, but the current version works too...
     #   I could probably just use nosetest if I wanted - that catches normal assert statements too. 
 
-    def test_creation_from_list_and_properties(self):
+    def test__creation_from_list_and_properties(self):
+        for l in [0,1,5,100]:
+            B = Binary_code(l,[])
+            assert B.length == l
+            assert B.size() == 0
+            assert B.find_Hamming_distance_range() == (None,None)
+            assert B.find_bit_sum_counts() == []
+            assert B.total_bit_sum() == 0
         B = Binary_code(3,['110','101','011','000'])
         assert B.length == 3
         assert B.size() == 4
@@ -629,7 +638,7 @@ class Testing_Binary_code(unittest.TestCase):
         # check that creation fails with inexistent method keyword
         self.assertRaises(BinaryCodeError, Binary_code, 4, ['110','101','011','000'], method='random')
 
-    def test_codeword_add_remove(self):
+    def test__codeword_add_remove(self):
         B = Binary_code(3,['110','101','011','000'])
         C = Binary_code(3,B.codewords)
         # add an element, verify that the Binary_code properties are correct
@@ -652,7 +661,7 @@ class Testing_Binary_code(unittest.TestCase):
         self.assertRaises(BinaryCodeError, B.add, '1111')
         self.assertRaises(BinaryCodeError, B.remove, '1111')
 
-    def test_remove_all_zero_codeword(self):
+    def test__remove_all_zero_codeword(self):
         B = Binary_code(3,['111','101','011','000'])
         C = Binary_code(3,B.codewords)
         assert C.remove_all_zero_codeword() == 1
@@ -666,7 +675,7 @@ class Testing_Binary_code(unittest.TestCase):
         assert C.length == B.length
         assert C.size() == B.size() - 1
 
-    def test_codeword_inversion(self):
+    def test__codeword_inversion(self):
         B = Binary_code(3,['110','101','011','000'])
         B_ = B.invert()
         assert B_.length == B.length
@@ -675,7 +684,7 @@ class Testing_Binary_code(unittest.TestCase):
         assert B_.find_bit_sum_counts() == sorted([(B.length-w,n) for (w,n) in B.find_bit_sum_counts()])
         assert B_.total_bit_sum() == B.size() * B.length - B.total_bit_sum()
 
-    def test_adding_parity_bit(self):
+    def test__adding_parity_bit(self):
         D = Binary_code(2,['11','10','01','00'])
         assert D.length == 2
         assert D.size() == 4
@@ -689,7 +698,7 @@ class Testing_Binary_code(unittest.TestCase):
         assert E.find_bit_sum_counts() == [(0,1), (2,3)]
         assert E.total_bit_sum() == D.total_bit_sum() + 2
 
-    def test_choose_by_bit_sum(self):
+    def test__choose_by_bit_sum(self):
         D = Binary_code(2,['11','10','01','00'])
         assert D.length == 2
         assert D.size() == 4
@@ -722,7 +731,7 @@ class Testing_Binary_code(unittest.TestCase):
         E.choose_by_bit_sum(1,1)
         assert E.size() == 0
 
-    def test_give_N_codeword_list_by_bit_sum(self):
+    def test__give_N_codeword_list_by_bit_sum(self):
         D = Binary_code(2,['11','10','01','00'])
         assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
         # check that the highest (or lowest) bit-sum elements are removed first (the True/False argument is remove_low)
@@ -748,7 +757,7 @@ class Testing_Binary_code(unittest.TestCase):
         # check that it's impossible to get 5 elements from a 4-element binary code
         self.assertRaises(BinaryCodeError, D.give_N_codeword_list_by_bit_sum, 5, False)
 
-    def test_creation_from_matrix_generator_file(self):
+    def test__creation_from_matrix_generator_file(self):
         # (also implicitly checks generation from a matrix object)
         infile1 = 'error-correcting_codes/19-10-5_generator'
         try:            B19 = Binary_code(19,val=infile1,method='matrixfile',expected_count=2**10)
@@ -759,7 +768,7 @@ class Testing_Binary_code(unittest.TestCase):
         assert B20.length == 20
         assert B20.find_bit_sum_counts() == [(0, 1), (6, 94), (8, 240), (10, 348), (12, 260), (14, 70), (16, 11)]
 
-    def test_creation_from_code_list_file(self):
+    def test__creation_from_code_list_file(self):
         B19 = Binary_code(19,val='error-correcting_codes/19-10-5_generator',method='matrixfile',expected_count=2**10)
         B20 = B19.add_parity_bit()
         infile2 = 'error-correcting_codes/20-10-6_list'
@@ -767,46 +776,46 @@ class Testing_Binary_code(unittest.TestCase):
         except IOError: sys.exit("Couldn't find input file %s to run list file test."%infile2)
         assert B20_new == B20
 
-    def test_clonality_count_conflicts_and_derivatives(self):
+    def test__clonality_count_conflicts_and_derivatives(self):
         """ Tests clonality_count_conflicts, clonality_naive_reduction, and clonality_conflict_check (since those 
         functions are trivially derived from clonality_count_conflicts and are easiest to test with the same setup)"""
         # defining the binary codewords so I can use them to check that the results are right
         [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
         [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
         [b11,b10,b01,b00] = [Binary_codeword(x) for x in ['11','10','01','00']]
-        expected_result_list = []
+        data_and_outputs = []
         B = Binary_code(3,[b110,b101,b011,b000])
-        expected_result_list.append((B,0,False, {0:set([b110,b101,b011,b000])} ))
-        expected_result_list.append((B,0,True,  {1:set([b110,b101,b011]),3:set([b000])} ))
-        expected_result_list.append((B,(0,0),False, {0:set([b110,b101,b011,b000])} ))
-        expected_result_list.append((B,(0,0),True,  {1:set([b110,b101,b011]),3:set([b000])} ))
+        data_and_outputs.append((B,0,False, {0:set([b110,b101,b011,b000])} ))
+        data_and_outputs.append((B,0,True,  {1:set([b110,b101,b011]),3:set([b000])} ))
+        data_and_outputs.append((B,(0,0),False, {0:set([b110,b101,b011,b000])} ))
+        data_and_outputs.append((B,(0,0),True,  {1:set([b110,b101,b011]),3:set([b000])} ))
         C = Binary_code(3,[b110,b101,b011])
-        expected_result_list.append((C,0,False, {0:set([b110,b101,b011])} ))
-        expected_result_list.append((C,0,True,  {0:set([b110,b101,b011])} ))
-        expected_result_list.append((C,1,False, {3:set([b110,b101,b011])} ))
-        expected_result_list.append((C,(0,0),False, {0:set([b110,b101,b011])} ))
-        expected_result_list.append((C,(0,0),True,  {0:set([b110,b101,b011])} ))
-        expected_result_list.append((C,(1,0),False, {0:set([b110,b101,b011])} ))
-        expected_result_list.append((C,(0,1),False, {3:set([b110,b101,b011])} ))
+        data_and_outputs.append((C,0,False, {0:set([b110,b101,b011])} ))
+        data_and_outputs.append((C,0,True,  {0:set([b110,b101,b011])} ))
+        data_and_outputs.append((C,1,False, {3:set([b110,b101,b011])} ))
+        data_and_outputs.append((C,(0,0),False, {0:set([b110,b101,b011])} ))
+        data_and_outputs.append((C,(0,0),True,  {0:set([b110,b101,b011])} ))
+        data_and_outputs.append((C,(1,0),False, {0:set([b110,b101,b011])} ))
+        data_and_outputs.append((C,(0,1),False, {3:set([b110,b101,b011])} ))
         D = Binary_code(2,[b11,b10,b01,b00])
-        expected_result_list.append((D,0,False, {0:set([b00]),1:set([b11,b10,b01])} ))
-        expected_result_list.append((D,0,True,  {3:set([b00,b10,b01]),4:set([b11])} ))
-        expected_result_list.append((D,(0,0),False, {0:set([b00]),1:set([b11,b10,b01])} ))
-        expected_result_list.append((D,(0,0),True,  {3:set([b00,b10,b01]),4:set([b11])} ))
+        data_and_outputs.append((D,0,False, {0:set([b00]),1:set([b11,b10,b01])} ))
+        data_and_outputs.append((D,0,True,  {3:set([b00,b10,b01]),4:set([b11])} ))
+        data_and_outputs.append((D,(0,0),False, {0:set([b00]),1:set([b11,b10,b01])} ))
+        data_and_outputs.append((D,(0,0),True,  {3:set([b00,b10,b01]),4:set([b11])} ))
         E = Binary_code(2,[b11,b00])
-        expected_result_list.append((E,0,False, {0:set([b11,b00])} ))
-        expected_result_list.append((E,0,True,  {1:set([b11,b00])} ))
-        expected_result_list.append((E,(0,0),False, {0:set([b11,b00])} ))
-        expected_result_list.append((E,(0,0),True,  {1:set([b11,b00])} ))
+        data_and_outputs.append((E,0,False, {0:set([b11,b00])} ))
+        data_and_outputs.append((E,0,True,  {1:set([b11,b00])} ))
+        data_and_outputs.append((E,(0,0),False, {0:set([b11,b00])} ))
+        data_and_outputs.append((E,(0,0),True,  {1:set([b11,b00])} ))
         F = Binary_code(3,[b001,b010,b100,b111])
-        expected_result_list.append((F,0,False, {0:set([b001,b010,b100,b111])} ))
-        expected_result_list.append((F,0,True,  {1:set([b001,b010,b100]),3:set([b111])} ))
-        expected_result_list.append((F,1,False, {2:set([b001,b010,b100]),3:set([b111])} ))
-        expected_result_list.append((F,(0,0),False, {0:set([b001,b010,b100,b111])} ))
-        expected_result_list.append((F,(0,0),True,  {1:set([b001,b010,b100]),3:set([b111])} ))
-        expected_result_list.append((F,(1,0),False, {2:set([b001,b010,b100]),3:set([b111])} ))
-        expected_result_list.append((F,(0,1),False, {0:set([b001,b010,b100,b111])} ))
-        for (code,N_changes,self_conflict,result) in expected_result_list:
+        data_and_outputs.append((F,0,False, {0:set([b001,b010,b100,b111])} ))
+        data_and_outputs.append((F,0,True,  {1:set([b001,b010,b100]),3:set([b111])} ))
+        data_and_outputs.append((F,1,False, {2:set([b001,b010,b100]),3:set([b111])} ))
+        data_and_outputs.append((F,(0,0),False, {0:set([b001,b010,b100,b111])} ))
+        data_and_outputs.append((F,(0,0),True,  {1:set([b001,b010,b100]),3:set([b111])} ))
+        data_and_outputs.append((F,(1,0),False, {2:set([b001,b010,b100]),3:set([b111])} ))
+        data_and_outputs.append((F,(0,1),False, {0:set([b001,b010,b100,b111])} ))
+        for (code,N_changes,self_conflict,result) in data_and_outputs:
             assert code.clonality_count_conflicts(N_changes,self_conflict,quiet=True) == result
             if 0 in result:     expected_outcome_1 = result[0]
             else:               expected_outcome_1 = set()
