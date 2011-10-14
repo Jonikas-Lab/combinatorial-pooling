@@ -373,9 +373,9 @@ class Binary_code:
          otherwise it'll conflict with everything (a warning will be printed).
         Codewords with 0 conflicts are guaranteed not to generate problems, but nothing very useful can be said about
          how many and which of the ones with low counts could be added to that set without generating clonality issues.
-        The last two arguments allow printing and/or returning of detailed conflict data - a set of ((A,B),A|B,C,s,n) 
-         tuples, where A and B are two codewords in the code, A|B is their clonality result, C is the set of codewords
-          that A|B conflicts with (i.e. is too close to, based on N_allowed_changes), s is 'self' if it was 
+        The last two arguments allow printing and/or returning of detailed conflict data - a set of (set(A,B),A|B,C,s,n) 
+         tuples, where A and B are two codewords in the code, A|B is their clonality result, C is the codeword or set
+          of codewords that A|B conflicts with (i.e. is too close to, based on N_allowed_changes), s is 'self' if it was 
           a self-conflict and '' otherwise, and n is N_allowed_changes (since I don't have the real N_changes available).
         """
 
@@ -398,20 +398,18 @@ class Binary_code:
             for A,B in itertools.combinations(self.codewords,2):
                 clonality_result = A|B
                 conflict_details = None
-                # for conflict_details testing purposes I need a sorted A,B tuple, since itertools order is unreliable
-                A_B = tuple(sorted([A,B]))
                 # if clonality_result is A or B, what to do depends on if count_self_conflict is True
                 if clonality_result in [A,B]:
                     if count_self_conflict:
                         for codeword in A,B:
                             codeword_to_conflict_count[codeword] += 1
                         # MAYBE-TODO use short string representations for A,B,clonality_result?  Or only when printing?...
-                        conflict_details = (A_B,clonality_result,clonality_result,'self',N_allowed_changes)
+                        conflict_details = (frozenset([A,B]),clonality_result,clonality_result,'self',N_allowed_changes)
                 # if clonality_result is an existing codeword (that's not A or B), add a conflict count
                 elif clonality_result in self.codewords: 
                     for codeword in [A,B,clonality_result]:
                         codeword_to_conflict_count[codeword] += 1
-                    conflict_details = (A_B,clonality_result,clonality_result,'',N_allowed_changes)
+                    conflict_details = (frozenset([A,B]),clonality_result,clonality_result,'',N_allowed_changes)
                 if conflict_details and print_conflict_details:     print conflict_details
                 if conflict_details and return_conflict_details:    all_conflict_details.add(conflict_details)
 
@@ -424,7 +422,6 @@ class Binary_code:
             for A,B in itertools.combinations(self.codewords,2):
                 clonality_result = A|B
                 conflict_details = None
-                A_B = tuple(sorted([A,B]))
                 if clonality_result in expanded_conflict_values: 
                     # if the list of base codewords for the conflict contains codewords other than A and B, 
                     #   register a conflict for A, B and all the base codewords (doing a set union 
@@ -432,15 +429,15 @@ class Binary_code:
                     if len(expanded_conflict_values[clonality_result]-set([A,B]))>0:
                         for codeword in expanded_conflict_values[clonality_result].union(set([A,B])):
                             codeword_to_conflict_count[codeword] += 1
-                        conflict_set = expanded_conflict_values[clonality_result] - set([A,B])
-                        conflict_details = (A_B,clonality_result,conflict_set,'',N_allowed_changes)
+                        conflict_set = frozenset(expanded_conflict_values[clonality_result] - set([A,B]))
+                        conflict_details = (frozenset([A,B]),clonality_result,conflict_set,'',N_allowed_changes)
                     # if the list of base codewords for the conflict was only A/B, 
                     #   only register a conflict is count_self_conflict is True
                     elif count_self_conflict:
                         for codeword in A,B:
                             codeword_to_conflict_count[codeword] += 1
-                        conflict_set = expanded_conflict_values[clonality_result] & set([A,B])
-                        conflict_details = (A_B,clonality_result,conflict_set,'self',N_allowed_changes)
+                        conflict_set = frozenset(expanded_conflict_values[clonality_result] & set([A,B]))
+                        conflict_details = (frozenset([A,B]),clonality_result,conflict_set,'self',N_allowed_changes)
                 if conflict_details and print_conflict_details:     print conflict_details
                 if conflict_details and return_conflict_details:    all_conflict_details.add(conflict_details)
 
@@ -804,7 +801,7 @@ class Testing__Binary_code(unittest.TestCase):
             assert B.clonality_conflict_check(0,False,RZ,quiet=True) == False 
         # with self-conflict counted, and with all-zero keyword - clonality conflicts
         B = Binary_code(3,[b110,b101,b011,b000])    # need to re-make it because the all-zero codeword was removed above
-        conflicts = set([((b000,x),x,x,'self',0) for x in set_no_zero])
+        conflicts = set([(frozenset([b000,x]),x,x,'self',0) for x in set_no_zero])
         result = {1:set_no_zero, 3:set([b000])}
         assert B.clonality_count_conflicts(0,True,False,return_conflict_details=True,quiet=True) == (result,conflicts)
         assert B.clonality_naive_reduction(0,True,False,quiet=True) == set()
@@ -813,7 +810,25 @@ class Testing__Binary_code(unittest.TestCase):
         assert B.clonality_count_conflicts(0,True,True,return_conflict_details=True,quiet=True) == ({0:set_no_zero}, set())
         assert B.clonality_naive_reduction(0,True,True,quiet=True) == set_no_zero
         assert B.clonality_conflict_check(0,True,True,quiet=True) == False 
-        ### TODO should also test count_self_conflicts with N_allowed_changes other than 0...
+        ### testing count_self_conflicts with N_allowed_changes other than 0; remove_all_zero_codeword not involved
+        C = Binary_code(2,[b01,b10])
+        full_set = set([b01,b10])
+        # with 0 allowed 0-to-1 changes - no conflicts even with self-conflict on
+        for NC in [0,(0,0),(1,0),(2,0),(9,0)]:
+            assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
+            assert C.clonality_naive_reduction(NC,True,quiet=True) == full_set
+            assert C.clonality_conflict_check(NC,True,quiet=True) == False 
+        # with at least one allowed 0-to-1 change but no self-conflict - no conflicts
+        for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
+            assert C.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
+            assert C.clonality_naive_reduction(NC,False,quiet=True) == full_set
+            assert C.clonality_conflict_check(NC,False,quiet=True) == False 
+        # with at least one allowed 0-to-1 change and self-conflict on - conflicts!
+        for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
+            conflicts = set([(frozenset([b01,b10]),b11,frozenset([b01,b10]),'self',NC)])
+            assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
+            assert C.clonality_naive_reduction(NC,True,quiet=True) == set()
+            assert C.clonality_conflict_check(NC,True,quiet=True) == True 
         ### All further testing will be done with count_self_conflict and remove_all_zero_codeword set to False. 
         if False:
             # old version without return_conflict_details, TODO reimplement!  Maybe split into a separate function?
