@@ -878,24 +878,64 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         #   since we're not looking at self-conflicts here, need at least 3 different codewords;
         #   since we're not interested in cases where 0 changes already give a conflict, we can't use 2-bit numbers. 
         [b0001,b0010,b0011,b0111,b1111] = [Binary_codeword(x) for x in ['0001','0010','0011','0111','1111']]
-        # 0001, 0010 -> 0011; expect a clonality conflict with 0011 always, 0111 with 1 allowed change, 1111 with 2.
+        ### 0001, 0010 -> 0011; expect a clonality conflict with 0011 always (0111 with 1 allowed change, 1111 with 2, ...)
         #   (since self-conflicts are excluded, there's no need to worry about 0010|0111=0111 etc.)
         D = Binary_code(4,[b0001,b0010,b0011])
         full_set = frozenset([b0001,b0010,b0011])
+        # with 0 allowed 0->1 changes, one conflict
         for NC in [0,(0,0),(1,0),(2,0),(9,0)]:
             conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b0011]),'',NC)])
             assert D.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) ==({1:full_set},conflicts)
             assert D.clonality_naive_reduction(NC,False,quiet=True) == set()
             assert D.clonality_conflict_check(NC,False,quiet=True) == True 
-        for NC in [4,(3,3),5,10]:
-            assert D.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True)[0] == {3:full_set}
+        # with multiple allowed 0->1 changes, three conflicts, because 0011+0010=0011 would conflict with 0001, etc
+        for NC in [1,(1,1),4,(3,3),5,10]:
+            assert D.clonality_count_conflicts(NC,False,return_conflict_details=False,quiet=True) == {3:full_set}
             assert D.clonality_naive_reduction(NC,False,quiet=True) == set()
             assert D.clonality_conflict_check(NC,False,quiet=True) == True 
         E = Binary_code(4,[b0001,b0010,b0011,b1111])
+        # note that if we add b1111 to the set, with no allowed 1->0 changes that doesn't conflict with anything
         for NC in [0,(0,0),(1,0)]:
             assert E.clonality_naive_reduction(NC,False,quiet=True) == set([b1111])
             assert E.clonality_conflict_check(NC,False,quiet=True) == True 
-        # TODO add more test cases?
+        ### 0001, 0010 -> 0011; expect a clonality conflict with 0111 with 1 allowed 1->0 change
+        F = Binary_code(4,[b0001,b0010,b0111])
+        full_set = frozenset([b0001,b0010,b0111])
+        # with no 1->0 changes allowed (and up to one 0->1 change), there are no conflicts
+        for NC in [0,(0,0),(0,1)]:
+            assert F.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set},set())
+            assert F.clonality_naive_reduction(NC,False,quiet=True) == full_set
+            assert F.clonality_conflict_check(NC,False,quiet=True) == False 
+        # with one or more 1->0 changes allowed, there's one conflict (0001+0010=0011 with 0111)
+        for NC in [1,(1,0),(2,0),(1,1)]:
+            conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b0111]),'',NC)])
+            assert F.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) ==({1:full_set},conflicts)
+            assert F.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert F.clonality_conflict_check(NC,False,quiet=True) == True 
+        # with 2+ 0->1 changes AND 1+ 1->0 changes, all three possible conflicts (0111+0001=0111 conflict with 0010 etc)
+        for NC in [2,(1,2),(2,2),9,(9,9)]:
+            assert F.clonality_count_conflicts(NC,False,return_conflict_details=False,quiet=True) =={3:full_set}
+            assert F.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert F.clonality_conflict_check(NC,False,quiet=True) == True 
+        ### 0001, 0010 -> 0011; expect a clonality conflict with 1111 with 2 allowed 1->0 changes
+        G = Binary_code(4,[b0001,b0010,b1111])
+        full_set = frozenset([b0001,b0010,b1111])
+        # with 0 or 1 1->0 changes allowed (and up to one 0->1 change), there are no conflicts
+        for NC in [0,(0,0),(0,1),1,(1,0),(1,1)]:
+            assert G.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set},set())
+            assert G.clonality_naive_reduction(NC,False,quiet=True) == full_set
+            assert G.clonality_conflict_check(NC,False,quiet=True) == False 
+        # with two or more 1->0 changes allowed, there's one conflict (0001+0010=0011 with 1111)
+        for NC in [2,(2,0),(2,1),(2,2),(9,0),(9,2)]:
+            conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b1111]),'',NC)])
+            assert G.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) ==({1:full_set},conflicts)
+            assert G.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert G.clonality_conflict_check(NC,False,quiet=True) == True 
+        # with 3+ 0->1 changes AND 2+ 1->0 changes, all three possible conflicts (0111+0001=1111 conflict with 0010 etc)
+        for NC in [3,(2,3),9,(9,9)]:
+            assert G.clonality_count_conflicts(NC,False,return_conflict_details=False,quiet=True) =={3:full_set}
+            assert G.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert G.clonality_conflict_check(NC,False,quiet=True) == True 
         # see experiments/generating_library/1110_clonality_check_troubleshooting/notes.txt for more tests/notes
 
     def test__no_self_conflicts__allowed_changes_nonzero__2(self):
