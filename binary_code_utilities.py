@@ -7,24 +7,29 @@ import sys
 from collections import defaultdict
 import itertools
 from numpy import array, dot
-import bitstring
-from general_utilities import invert_dict_tolists, invert_listdict_tolists
 import unittest
+import bitstring
+
+# my modules
+from general_utilities import invert_dict_tolists, invert_listdict_tolists
 
 class BinaryCodeError(Exception):
     """ Exceptions in the binary_code_utilities module."""
     pass
 
+
 ######### Binary string representations
-# what's a sensible representation of binary data?  Certainly not strings.  For 1-dimensional binary strings I suppose I can just use integers... Not really, because int('000',2) is the same as int('0',2)
-#  http://stackoverflow.com/questions/142812/does-python-have-a-bitfield-type
-# should support basic bitwise operators: &, |, ^, ~
 
 class Binary_codeword:
-    """ A binary string like '01101'. '001' and '01' are distinct. Supports |, &, ^, ~ bitwise operators.
-    Not just a binary representation of an integer: '001' and '01' are distinct. """
-    # implemented with bistring: http://pypi.python.org/pypi/bitstring/2.2.0  http://code.google.com/p/python-bitstring/
-    # more convenient/logical than bitarray; has more documentation/support; may be slower but this shouldn't matter much.
+    """ A binary string representation (like '01101'), with a defined length. Supports |, &, ^, ~ bitwise operators.
+
+    Can be made from string, int, list.  
+    Not just a binary representation of an integer: '001' and '01' are distinct. 
+
+    Not actually represented as strings internally - that would be insanely slow.
+    Implemented using the bistring package: 
+        http://pypi.python.org/pypi/bitstring/2.2.0 , http://code.google.com/p/python-bitstring/ """
+    #  see http://stackoverflow.com/questions/142812/does-python-have-a-bitfield-type for more implementation options
 
     def __init__(self,val,length=None,check_length=False):
         """ Generate the self.codeword binary word based on val; pad with 0s on the left to desired length if specified.
