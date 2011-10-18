@@ -227,11 +227,14 @@ class Binary_code:
         except KeyError:
             raise BinaryCodeError("Codeword %s cannot be removed from code because it wasn't present!"%val)
 
-    def remove_all_zero_codeword(self):
-        """ If the code contains the all-zero codeword, remove it and return 1; otherwise return 0; never fail. """
+    def remove_extreme_codeword(self,bit=0):
+        """ Remove the all-zero codeword (if bit==0; default) or the all-one codeword (if bit==1) from the code.  
+        Return 1 if the codeword was present, otherwise return 0; only raise an exception if bit argument isn't 0/1. """
         # MAYBE-TODO or should I make this return a new code instead? Do I want the codes to be immutable or not?
+        if bit not in [0,1,'0','1']:
+            raise BinaryCodeError("bit argument to remove_extreme_codeword must be 0 or 1!")
         try:
-            self.codewords.remove(Binary_codeword('0'*self.length,length=self.length))
+            self.codewords.remove(Binary_codeword(str(bit)*self.length,length=self.length))
             return 1
         except KeyError:
             return 0
@@ -380,12 +383,13 @@ class Binary_code:
         """
 
         # deal with all-zero codeword: remove if requested, print warning if it's False and count_self_conflict is True
-        if remove_all_zero_codeword:    self.remove_all_zero_codeword()
+        if remove_all_zero_codeword:    self.remove_extreme_codeword(bit=0)
         elif count_self_conflict and (Binary_codeword('0'*self.length) in self.codewords) and not quiet:
             print("Warning: you're running a clonality conflict check with count_self_conflict turned on, and your code "
                   +"contains the all-zero codeword - be aware that it's going to generate a clonality conflict with "
                   +"EVERYTHING. Set the remove_all_zero_codeword argument to True if you'd like to prevent that; "
                   +"set the quiet argument to True to silence this message.")
+        # MAYBT-TODO add a remove_all_one_codeword option too?  It's frequently bad to have it in there...
 
         # set up conflict-count dictionary, with a 0 for each codeword
         codeword_to_conflict_count = dict([(codeword,0) for codeword in self.codewords])
@@ -446,8 +450,6 @@ class Binary_code:
         conflict_count_to_codeword_set = invert_dict_tolists(codeword_to_conflict_count)
         if return_conflict_details:     return conflict_count_to_codeword_set, all_conflict_details
         else:                           return conflict_count_to_codeword_set
-        # TODO this needs more testing, not just unit-tests - some results I get on larger codes are odd!  
-        #   (see experiments/generating_library/1110_clonality_check_troubleshooting/notes.txt for details/TODOs/etc)
 
 
     def clonality_conflict_check(self, N_allowed_changes=(0,0), count_self_conflict=False, remove_all_zero_codeword=False,
@@ -661,19 +663,31 @@ class Testing__Binary_code__most_functions(unittest.TestCase):
         self.assertRaises(BinaryCodeError, B.add, '1111')
         self.assertRaises(BinaryCodeError, B.remove, '1111')
 
-    def test__remove_all_zero_codeword(self):
+    def test__remove_extreme_codeword(self):
         B = Binary_code(3,['111','101','011','000'])
         C = Binary_code(3,B.codewords)
-        assert C.remove_all_zero_codeword() == 1
+        ### removing all-zero codeword
+        assert C.remove_extreme_codeword(bit=0) == 1
         assert C.length == B.length
         assert C.size() == B.size() - 1
         assert C.find_Hamming_distance_range() == (1,2)
         assert C.find_bit_sum_counts() == [(2,2), (3,1)]
         assert C.total_bit_sum() == B.total_bit_sum()
-        # try removing the all-zero codeword again - should have no effect
-        assert C.remove_all_zero_codeword() == 0
+        # try removing it again - should have no effect
+        assert C.remove_extreme_codeword(bit=0) == 0
         assert C.length == B.length
         assert C.size() == B.size() - 1
+        ### removing all-one codeword
+        assert C.remove_extreme_codeword(bit=1) == 1
+        assert C.length == B.length
+        assert C.size() == B.size() - 2
+        assert C.find_Hamming_distance_range() == (2,2)
+        assert C.find_bit_sum_counts() == [(2,2)]
+        assert C.total_bit_sum() == B.total_bit_sum() - 3
+        # try removing it again - should have no effect
+        assert C.remove_extreme_codeword(bit=1) == 0
+        assert C.length == B.length
+        assert C.size() == B.size() - 2
 
     def test__codeword_inversion(self):
         B = Binary_code(3,['110','101','011','000'])
@@ -877,6 +891,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert E.clonality_naive_reduction(NC,False,quiet=True) == set([b1111])
             assert E.clonality_conflict_check(NC,False,quiet=True) == True 
         # TODO add more test cases?
+        # see experiments/generating_library/1110_clonality_check_troubleshooting/notes.txt for more tests/notes
 
     def test__no_self_conflicts__allowed_changes_nonzero__2(self):
         """ Test cases with 3-bit numbers that show conflicts with nonzero allowed changes only; self-conflicts ignored.
