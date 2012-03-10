@@ -16,13 +16,15 @@ USAGE:  robotic_plate_transfer.py [options] outfile_base_name
         robotic_plate_transfer.py [-h] [-t] [-T]
 """
 
+# standard libraries
 import sys, os, shutil
 import unittest
 from collections import defaultdict
+from math import ceil
+from string import ascii_uppercase as letters    # this is 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+# my modules
 import binary_code_utilities
 from general_utilities import invert_list_to_dict, save_line_list_as_file, write_header_data
-
-from string import ascii_uppercase as letters    # this is 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 class PlateTransferError(Exception):
     """ Exception for this file (does nothing interesting)."""
@@ -343,11 +345,33 @@ class Testing_split_command_list_by_source(unittest.TestCase):
     """ Unit-tests for the split_command_list_by_source function. """
 
     def test__split_command_list_by_source(self):
+        assert split_command_list_by_source([]) == {}
         # if there's only one plate, the result should be a one-item dictionary
         assert split_command_list_by_source(['p1,A1,x,5','p1,A2,y,5']) == {'p1':['p1,A1,x,5','p1,A2,y,5']}
         # if there are multiple plates, return one dict per plate
         assert split_command_list_by_source(['p1,A1,x,5','p2,A1,y,5']) == {'p1':['p1,A1,x,5'], 'p2': ['p2,A1,y,5']}
+        assert split_command_list_by_source(['p1,A1,x,5','p2,A1,y,5','p2,A2,y,5']) == {'p1':['p1,A1,x,5'], 
+                                                                                       'p2': ['p2,A1,y,5','p2,A2,y,5']}
 
+
+class Testing_split_command_list_to_max_commands(unittest.TestCase):
+
+    def test_split_command_list_to_max_commands(self):
+        # N must be a positive integer (yes, I'm not checking for other wrong types, sue me)
+        for N in [-1,0]:
+            self.assertRaises(PlateTransferError, split_command_list_to_max_commands, [], N)
+            self.assertRaises(PlateTransferError, split_command_list_to_max_commands, ['a','b','c'], N)
+        # if N<len(list), return the original list
+        for N in range(1,10):
+            assert split_command_list_to_max_commands([], N) == []
+            assert split_command_list_to_max_commands(['a','b','c'], N+3) == [['a','b','c']]
+        assert split_command_list_to_max_commands(['a','b','c'], 1) == [['a'],['b'],['c']]
+        assert split_command_list_to_max_commands(['a','b','c'], 2) == [['a','b'],['c']]
+        assert split_command_list_to_max_commands(['a','b','c'], 3) == [['a','b','c']]
+        assert split_command_list_to_max_commands(['a','b','c','d'], 1) == [['a'],['b'],['c'],['d']]
+        assert split_command_list_to_max_commands(['a','b','c','d'], 2) == [['a','b'],['c','d']]
+        assert split_command_list_to_max_commands(['a','b','c','d'], 3) == [['a','b'],['c','d']]
+        assert split_command_list_to_max_commands(['a','b','c','d'], 4) == [['a','b','c','d']]
 
 
 ### General functions (not input/output or optparse-related or testing or main), in approximate order of use
@@ -436,7 +460,7 @@ def assign_codewords(N_samples, N_pools, binary_code, remove_low=False, quiet=Fa
         raise PlateTransferError("The codeword length in the provided binary code must be equal to N_pools!")
     if N_samples > binary_code.size():
         raise PlateTransferError("N_samples cannot exceed the size of the provided binary code!")
-    if binary_code.remove_all_zero_codeword():
+    if binary_code.remove_extreme_codeword(bit=0):
         if not quiet:
             print("Warning: the binary code provided contained the all-zero codeword, which cannot be used, "
                   + "as it would result in a sample being added to none of the pools and thus not sequenced. "
@@ -482,6 +506,10 @@ def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions
             Biomek_file_commands.append("%s,%s,%s"%(sample_position,pool_positions[pool_number],volume))
     # MAYBE-TODO might be nice to have info printed about the highest number of pools per sample and samples per pool, to help with volume calculations... And also the total number of transfers (maybe divided by 96) to figure out how many tip boxes will be needed
     return Biomek_file_commands
+# TODO make this calculate and output two pieces of information: 
+# - how many samples will be taken from each source position!
+# - how many samples will end up in each destination position!
+# Make the formatting useful-looking - possibly just give the range first.
 
 
 def split_command_list_by_source(Biomek_file_commands):
@@ -491,6 +519,22 @@ def split_command_list_by_source(Biomek_file_commands):
         source_plate = line.split(',')[0]
         data_dict[source_plate].append(line)
     return data_dict
+
+
+def split_command_list_to_max_commands(Biomek_file_commands, max_lines=300):
+    """ Split list of strings into multiple lists no longer than max_lines; return list of those lists."""
+    if max_lines<=0: raise PlateTransferError("max_lines must be a positive integer!")
+    if len(Biomek_file_commands)==0:    return []
+    N_lines = len(Biomek_file_commands)
+    N_lists = int(ceil(float(N_lines)/max_lines))
+    # rather than just take max_lines until nothing is left, split the original list up evenly: 
+    #  even if max_lines is 3, len4 should become [len2,len2] rather than [len3,len1]
+    N_lines_per_list = int(ceil(float(N_lines)/N_lists))
+    #print "%s lines, %s max lines per list -> %s lists with <=%s lines"%(N_lines, max_lines, N_lists, N_lines_per_list)
+    new_lists = []
+    for i in range(N_lists):
+        new_lists.append(Biomek_file_commands[i*N_lines_per_list : (i+1)*N_lines_per_list])
+    return new_lists
 
 
 ### Input/output functions - no need/ability to unit-test, all the complicated functionality should be elsewhere.
