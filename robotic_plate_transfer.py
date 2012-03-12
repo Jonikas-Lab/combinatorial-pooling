@@ -71,8 +71,9 @@ plate_types = dict([(n,Plate_type(n)) for n in plate_sizes])
 
 
 ### Unit-tests for the classes/setup above and "general functions" below
+# MAYBE-TODO do I want separate test classes for each function, or should I merge them? What's the standard? Unittest output doesn't give the class name/docstring when it fails, only the function name/docstring...
 
-class Testing_Plate_type(unittest.TestCase):
+class Testing__Plate_type(unittest.TestCase):
     """ Unit-tests for the Plate_type class and methods. """
     # (all the plate types have been generated already on module import, so just test them)
 
@@ -152,7 +153,7 @@ class Testing_Plate_type(unittest.TestCase):
         self.assertRaises(PlateTransferError,Plate_type,'T')
 
 
-class Testing_generate_outfile_names(unittest.TestCase):
+class Testing__generate_outfile_names(unittest.TestCase):
     """ Unit-tests for the generate_outfile_names function. """
 
     def test__single_Biomek_file(self):
@@ -187,7 +188,7 @@ class Testing_generate_outfile_names(unittest.TestCase):
         self.assertRaises(PlateTransferError, generate_outfile_names, 'X',1,1,['A'])
 
 
-class Testing_get_plate_name_list_from_input(unittest.TestCase):
+class Testing__get_plate_name_list_from_input(unittest.TestCase):
     """ Unit-tests for the get_plate_name_list_from_input function. """
 
     def test__input_types(self):
@@ -215,7 +216,7 @@ class Testing_get_plate_name_list_from_input(unittest.TestCase):
         self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 3,['A','A','C'])
 
 
-class Testing_numbers_to_plate_and_well_IDs(unittest.TestCase):
+class Testing__numbers_to_plate_and_well_IDs(unittest.TestCase):
     """ Unit-tests for the numbers_to_plate_and_well_IDs function. """
 
     def test__correct_cases(self):
@@ -234,7 +235,7 @@ class Testing_numbers_to_plate_and_well_IDs(unittest.TestCase):
         self.assertRaises(PlateTransferError, numbers_to_plate_and_well_IDs, 2, 10, 2, ['plate1','plate2'])
 
 
-class Testing_assign_codewords(unittest.TestCase):
+class Testing__assign_codewords(unittest.TestCase):
     """ Unit-tests for the assign_codewords function. """
 
     def setUp(self):
@@ -313,7 +314,7 @@ class Testing_assign_codewords(unittest.TestCase):
             self.assertRaises(PlateTransferError, assign_codewords, 4,3,self.B_without_00,remove_low=r,quiet=True)
 
 
-class Testing_make_Biomek_file_commands(unittest.TestCase):
+class Testing__make_Biomek_file_commands(unittest.TestCase):
     """ Unit-tests for the make_Biomek_file_commands function. """
 
     def test__basic_functionality(self):
@@ -341,30 +342,40 @@ class Testing_make_Biomek_file_commands(unittest.TestCase):
         self.assertRaises(PlateTransferError, make_Biomek_file_commands, [b01,b10,b11],['x','y','z'],['B'],5)
 
 
-class Testing_split_command_list_by_source(unittest.TestCase):
+class Testing__split_command_list_by_source(unittest.TestCase):
     """ Unit-tests for the split_command_list_by_source function. """
 
-    def test__split_command_list_by_source(self):
+    def test__empty_list(self):
+        """ empty list -> empty dictionary """
         assert split_command_list_by_source([]) == {}
-        # if there's only one plate, the result should be a one-item dictionary
+
+    def test__single_plate(self):
+        """ if there's only one plate, the result should be a one-item dictionary. """
         assert split_command_list_by_source(['p1,A1,x,5','p1,A2,y,5']) == {'p1':['p1,A1,x,5','p1,A2,y,5']}
-        # if there are multiple plates, return one dict per plate
+
+    def test__multiple_plates(self):
+        """ if there are multiple plates, return one dict per plate. """
         assert split_command_list_by_source(['p1,A1,x,5','p2,A1,y,5']) == {'p1':['p1,A1,x,5'], 'p2': ['p2,A1,y,5']}
         assert split_command_list_by_source(['p1,A1,x,5','p2,A1,y,5','p2,A2,y,5']) == {'p1':['p1,A1,x,5'], 
                                                                                        'p2': ['p2,A1,y,5','p2,A2,y,5']}
 
 
-class Testing_split_command_list_to_max_commands(unittest.TestCase):
+class Testing__split_command_list_to_max_commands(unittest.TestCase):
 
-    def test_split_command_list_to_max_commands(self):
-        # N must be a positive integer (yes, I'm not checking for other wrong types, sue me)
+    def test__bad_inputs(self):
+        """ N must be a positive integer (yes, I'm not checking for other wrong types, sue me). """
         for N in [-1,0]:
             self.assertRaises(PlateTransferError, split_command_list_to_max_commands, [], N)
             self.assertRaises(PlateTransferError, split_command_list_to_max_commands, ['a','b','c'], N)
-        # if N<len(list), return the original list
+
+    def test__max_greater_than_len(self):
+        """ if N<len(list), return the original list. """
         for N in range(1,10):
             assert split_command_list_to_max_commands([], N) == []
             assert split_command_list_to_max_commands(['a','b','c'], N+3) == [['a','b','c']]
+
+    def test__various(self):
+        """ Testing specific cases. """
         assert split_command_list_to_max_commands(['a','b','c'], 1) == [['a'],['b'],['c']]
         assert split_command_list_to_max_commands(['a','b','c'], 2) == [['a','b'],['c']]
         assert split_command_list_to_max_commands(['a','b','c'], 3) == [['a','b','c']]
