@@ -386,6 +386,35 @@ class Testing__split_command_list_to_max_commands(unittest.TestCase):
         assert split_command_list_to_max_commands(['a','b','c','d'], 3) == [['a','b'],['c','d']]
         assert split_command_list_to_max_commands(['a','b','c','d'], 4) == [['a','b','c','d']]
 
+def do_test_run():
+    """ Test run: run script on test infile, compare output to reference file."""
+    if not os.access("./error-correcting_codes",os.F_OK):
+        return "Error: there is not error-correcting_codes folder in this directory - can't run tests."
+    if os.access("./test_outputs",os.F_OK):
+        print("Test output files will be saved in the test_outputs directory (already present - removing it now).")
+        shutil.rmtree("./test_outputs")
+    else:
+        print("Test output files will be saved in the test_outputs directory (not present - creating it now).")
+    os.mkdir("./test_outputs")
+    # MAYBE-TODO Allow the test_outputs folder name to be given as an argument/option?  How?
+
+    test_runs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator test_outputs/test1 -q", 
+                 "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator test_outputs/test2 -q", 
+                "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test_outputs/test3 -q"]
+    # MAYBE-TODO add name/description strings to the test cases?
+    parser = define_option_parser()
+    for test_run in test_runs:
+        print(" * New test run, with arguments: %s"%test_run)
+        # regenerate options with test argument string
+        (options, args) = parser.parse_args(test_run.split())
+        run_main_function(parser,options,args)
+    print("*** Test runs finished. If you didn't get any errors, that's good (warnings are all right). "
+          + "Check the output files to make sure they look reasonable (this is NOT done automatically!).")
+    return 0
+    # TODO move this to a separate function!!
+    # TODO write full tests that compare the outputs to expected files made by hand!!!
+    # TODO I'd like to be able to compare files even if they have different date headers - I could use the command-line diff utility and its --ignore-matching-lines=<REGEX> option, or python difflib package (ndiff or SequenceMatcher or something http://docs.python.org/library/difflib.html) and the linejunk function.  Or just write something to remove the "date" lines from the output files before doing the comparison? No, that's bad.
+    # MAYBE-TODO Set up a more complicated file-to-reference comparison myself - like compare each reference/output line normally (i.e. they have to be identical), UNLESS the reference file line starts with <REGEX>, in which case check if the output file line matches the regex given in the reference file line.  See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle
 
 ### General functions (not input/output or optparse-related or testing or main), in approximate order of use
 
@@ -554,7 +583,7 @@ def split_command_list_to_max_commands(Biomek_file_commands, max_lines=300):
 
 ### Input/output functions - no need/ability to unit-test, all the complicated functionality should be elsewhere.
 
-def get_binary_code(listfile=None,matrixfile=None):
+def get_binary_code(length,listfile=None,matrixfile=None):
     """ Given a listfile or matrixfile name (but not both!), return the generated binary code."""
     if not (listfile or matrixfile):
         raise PlateTransferError("You must provide either a listfile or a matrixfile to generate a binary code!")
@@ -566,7 +595,7 @@ def get_binary_code(listfile=None,matrixfile=None):
     elif matrixfile:
         method = 'matrixfile'
         infile = matrixfile
-    binary_code = binary_code_utilities.Binary_code(length=options.number_of_pools, val=infile, method=method)
+    binary_code = binary_code_utilities.Binary_code(length=length, val=infile, method=method)
     return binary_code
 
 
@@ -730,7 +759,8 @@ def run_main_function(parser,options,args):
     (outfile_data, outfiles_Biomek, outfiles_Biomek_mirror) = outfiles
     print("Output files: %s"%(outfiles,))
     # assign codewords to samples
-    binary_code = get_binary_code(options.binary_code_list_file, options.binary_code_generator_file)
+    binary_code = get_binary_code(options.number_of_pools, 
+                                  options.binary_code_list_file, options.binary_code_generator_file)
     sample_codewords = assign_codewords(options.number_of_samples, options.number_of_pools, binary_code, 
                                         quiet=options.quiet)
     # generate plate names from strings if they weren't given as lists
@@ -779,31 +809,8 @@ if __name__=='__main__':
 
     if options.test_run:
         print("*** You used the -T option - ignoring all other options and running the built-in example test runs.")
-        if not os.access("./error-correcting_codes",os.F_OK):
-            sys.exit("Error: there is not error-correcting_codes folder in this directory - can't run tests.")
-        if os.access("./test_outputs",os.F_OK):
-            print("Test output files will be saved in the test_outputs directory (already present - removing it now).")
-            shutil.rmtree("./test_outputs")
-        else:
-            print("Test output files will be saved in the test_outputs directory (not present - creating it now).")
-        os.mkdir("./test_outputs")
-        # MAYBE-TODO Allow the test_outputs folder name to be given as an argument/option?  How?
-
-        test_runs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator test_outputs/test1 -q", 
-                     "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator test_outputs/test2 -q", 
-                    "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test_outputs/test3 -q"]
-        # MAYBE-TODO add name/description strings to the test cases?
-        for test_run in test_runs:
-            print(" * New test run, with arguments: %s"%test_run)
-            # regenerate options with test argument string
-            (options, args) = parser.parse_args(test_run.split())
-            run_main_function(parser,options,args)
-        print("*** Test runs finished. If you didn't get any errors, that's good (warnings are all right). "
-              + "Check the output files to make sure they look reasonable (this is NOT done automatically!).")
-        sys.exit(0)
-        # TODO move this to a separate function!!
-        # TODO write full tests that compare the outputs to expected files made by hand!!!
-        # MAYBE-TODO instead of using filecmp.cmp to compare expected/output files, is there something with more features? Like ignoring header lines or date lines or whatever? I guess diff has an --ignore-matching-lines=<REGEX> option, could use that... Or is there an actual python regression test library somewhere? 
+        test_result = do_test_run()
+        sys.exit(test_result)
 
     # If it's not a test run, just run the main functionality
     run_main_function(parser,options,args)

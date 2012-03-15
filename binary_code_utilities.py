@@ -200,8 +200,8 @@ class Binary_code:
         """ Initialize with the given length, and add all elements of values to the set of codewords (default empty)."""
         try: 
             self.length = int(length)
-        except ValueError:  
-            raise BinaryCodeError("The length argument to Binary_code must be an int or possible to cast to an int!")
+        except (ValueError,TypeError):  
+            raise BinaryCodeError('Binary_code length argument "%s" is not an int or possible to cast to an int!'%length)
         self.method = method
         self.codewords = set()
         if method=='list':
