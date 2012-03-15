@@ -22,6 +22,7 @@ import unittest
 from collections import defaultdict
 from math import ceil
 from string import ascii_uppercase as letters    # this is 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+import filecmp
 # my modules
 import binary_code_utilities
 from general_utilities import invert_list_to_dict, save_line_list_as_file, write_header_data
@@ -388,8 +389,41 @@ class Testing__split_command_list_to_max_commands(unittest.TestCase):
 
 def do_test_run():
     """ Test run: run script on test infile, compare output to reference file."""
+    parser = define_option_parser()
     if not os.access("./error-correcting_codes",os.F_OK):
-        return "Error: there is not error-correcting_codes folder in this directory - can't run tests."
+        print "Error: there is not error-correcting_codes folder in this directory - can't run tests."
+        return 1
+
+    ### 1) tests with actual output reference files - the output is checked for correctness
+    print("*** CHECKED TEST RUNS - THE OUTPUT IS CHECKED AGAINST CORRECT REFERENCE FILES. ***")
+    test_folder = "test_data"
+    outfile_base_name = "test_tmp"
+    test_run = "-n 7 -N 3 -p 1 -P 1 -i Source -o -c error-correcting_codes/3-2-1_list -q"
+    test_name = "testA"
+    print(" * New test run %s, with arguments: %s"%(test_name,test_run))
+    (options, args) = parser.parse_args(test_run.split() + [os.path.join(test_folder,outfile_base_name)])
+    run_main_function(parser,options,args)
+    test_reference_files = [f for f in os.listdir(test_folder) if f.startswith(test_name)]
+    print test_reference_files
+    for reffile in test_reference_files:
+        reffile = os.path.join(test_folder,reffile)
+        outfile = reffile.replace(test_name, outfile_base_name)
+        print "comparing %s, %s"%(outfile,reffile)
+        if filecmp.cmp(outfile, reffile, shallow=False):
+            os.remove(outfile)
+        else:
+            print("TEST FAILED!!  Reference file %s and output file %s differ - PLEASE COMPARE."%(reffile,outfile))
+            return 1
+    # TODO I'd like to be able to compare files even if they have different date headers - I could use the command-line diff utility and its --ignore-matching-lines=<REGEX> option, or python difflib package (ndiff or SequenceMatcher or something http://docs.python.org/library/difflib.html) and the linejunk function.  Or just write something to remove the "date" lines from the output files before doing the comparison? No, that's bad.
+    # MAYBE-TODO Set up a more complicated file-to-reference comparison myself - like compare each reference/output line normally (i.e. they have to be identical), UNLESS the reference file line starts with <REGEX>, in which case check if the output file line matches the regex given in the reference file line.  See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle
+
+    print("*** Checked test runs finished - EVERYTHING IS FINE. ***")
+    # TODO write more checked tests!
+
+    ### 2) smoke tests with no output reference files - just make sure they work and don't give errors
+    # TODO these should probably be optional or something...  Or a separate function?
+    print("*** SMOKE TEST RUNS - THE OUTPUT IS NOT CHECKED, WE'RE JUST MAKING SURE THERE ARE NO ERRORS. ***")
+
     if os.access("./test_outputs",os.F_OK):
         print("Test output files will be saved in the test_outputs directory (already present - removing it now).")
         shutil.rmtree("./test_outputs")
@@ -402,19 +436,14 @@ def do_test_run():
                  "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator test_outputs/test2 -q", 
                 "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test_outputs/test3 -q"]
     # MAYBE-TODO add name/description strings to the test cases?
-    parser = define_option_parser()
     for test_run in test_runs:
         print(" * New test run, with arguments: %s"%test_run)
         # regenerate options with test argument string
         (options, args) = parser.parse_args(test_run.split())
         run_main_function(parser,options,args)
-    print("*** Test runs finished. If you didn't get any errors, that's good (warnings are all right). "
+    print("*** Smoke test runs finished. If you didn't get any errors, that's good (warnings are all right). "
           + "Check the output files to make sure they look reasonable (this is NOT done automatically!).")
     return 0
-    # TODO move this to a separate function!!
-    # TODO write full tests that compare the outputs to expected files made by hand!!!
-    # TODO I'd like to be able to compare files even if they have different date headers - I could use the command-line diff utility and its --ignore-matching-lines=<REGEX> option, or python difflib package (ndiff or SequenceMatcher or something http://docs.python.org/library/difflib.html) and the linejunk function.  Or just write something to remove the "date" lines from the output files before doing the comparison? No, that's bad.
-    # MAYBE-TODO Set up a more complicated file-to-reference comparison myself - like compare each reference/output line normally (i.e. they have to be identical), UNLESS the reference file line starts with <REGEX>, in which case check if the output file line matches the regex given in the reference file line.  See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle
 
 ### General functions (not input/output or optparse-related or testing or main), in approximate order of use
 
@@ -757,7 +786,7 @@ def run_main_function(parser,options,args):
     outfiles = generate_outfile_names(outfile_basename, options.multiple_Biomek_files, options.add_mirror_pooling_files, 
                                       options.number_of_sample_plates, options.sample_plate_IDs)
     (outfile_data, outfiles_Biomek, outfiles_Biomek_mirror) = outfiles
-    print("Output files: %s"%(outfiles,))
+    if not options.quiet:  print("Output files: %s"%(outfiles,))
     # assign codewords to samples
     binary_code = get_binary_code(options.number_of_pools, 
                                   options.binary_code_list_file, options.binary_code_generator_file)
@@ -789,6 +818,10 @@ def run_main_function(parser,options,args):
                                                                 mirror_pool_positions, options.volume_per_transfer)
         write_data_to_Biomek_files(outfiles_Biomek_mirror, mirror_Biomek_file_commands, 
                                    options.max_commands_per_file, options.Biomek_file_header)
+
+    # return list of all the outfiles generated
+    # TODO this doesn't include the outfile names generated if outfiles were split to fit under max_lines!
+    return (outfile_data, outfiles_Biomek, outfiles_Biomek_mirror)
 
 
 if __name__=='__main__':

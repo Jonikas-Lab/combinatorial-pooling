@@ -1,0 +1,19 @@
+# Command line this file was generated with: robotic_plate_transfer.py -T
+# Path: <___>
+# Date: <___>,		User: <___>,		System: <___>
+# Full options: <___>
+# Corresponding Biomek file(s): ['test_outputs/test1_Biomek.csv']
+
+sample_number,	plate_and_well_position,	codeword
+0,	Source,A1,	001
+1,	Source,A2,	010
+2,	Source,A3,	100
+3,	Source,A4,	011
+4,	Source,A5,	101
+5,	Source,A6,	110
+6,	Source,A7,	111
+
+pool_number,	plate_and_well_position
+0,	Destination,A1
+1,	Destination,A2
+2,	Destination,A3
