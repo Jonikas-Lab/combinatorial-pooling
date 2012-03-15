@@ -30,22 +30,24 @@ class PlateTransferError(Exception):
     """ Exception for this file (does nothing interesting)."""
     pass
 
-plate_types_rows_columns = {6: (2,3), 24: (4,6), 96: (8,12), 384: (16,24)}
-plate_sizes = sorted(plate_types_rows_columns.keys())
-
 
 class Plate_type:
     """ A plate type (384-well, 96-well, 24-well or 6-well)."""
+
+    plate_types_rows_columns = {6: (2,3), 24: (4,6), 96: (8,12), 384: (16,24)}
+    plate_sizes = sorted(plate_types_rows_columns.keys())
 
     def __init__(self,size):
         """ Go from the size to row and column numbers, call make_well_ID_list_and_dict."""
         self.size = size
         try:                
-            self.rows, self.columns = plate_types_rows_columns[size]
+            self.rows, self.columns = self.__class__.plate_types_rows_columns[size]
         except KeyError:    
-            raise PlateTransferError("Plate size must be in integer in %s!"%plate_sizes)
+            raise PlateTransferError("Plate size must be in integer in %s!"%self.__class__.plate_sizes)
         assert self.rows*self.columns == self.size
         self.make_well_ID_list_and_dict()
+        # TODO add an option of explicily specifying the well list (or dict) instead of just size!
+        # TODO use that to add a 6-well plate that's masquarading as a 96-well plate.
     
     def make_well_ID_list_and_dict(self):
         """ Generate a well ID list so list[number]==ID, and a well ID dict so dict[ID]==number.
@@ -67,7 +69,7 @@ class Plate_type:
         except IndexError:  raise PlateTransferError("Can't get well %s from a %s-well plate!"%(ID,self.size))
 
 # initialize the defined plate types
-plate_types = dict([(n,Plate_type(n)) for n in plate_sizes])
+plate_types = dict([(n,Plate_type(n)) for n in Plate_type.plate_sizes])
 
 
 ### Unit-tests for the classes/setup above and "general functions" below
@@ -110,7 +112,7 @@ class Testing__Plate_type(unittest.TestCase):
         self.assertRaises(TypeError, plate_types[6].get_well_ID_from_number, 'A')
         self.assertRaises(TypeError, plate_types[6].get_well_ID_from_number, [1])
         # well numbers are 0-based, so there should be no well N in an N-well plate (the wells are 0..N-1)
-        for plate_size in plate_sizes:
+        for plate_size in Plate_type.plate_sizes:
             self.assertRaises(PlateTransferError, plate_types[plate_size].get_well_ID_from_number, plate_size)
 
     def test__get_well_number_from_ID__known_wells(self):
@@ -393,8 +395,9 @@ def generate_outfile_names(outfile_basename,if_multiple_files,if_mirror_files,nu
     Otherwise, something like this:  X -> (X.txt, [X_Biomek_A.csv,X_Biomek_B.csv,...], M)  
       (assuming get_plate_name_list_from_input(number_of_files,file_plate_names) returns something like [A,B,...]) 
     If if_mirror_files is true, Biomek_mirror (M above) is []; otherwise it's the same as Biomek with a _mirror suffix."""
-
+    ### 1) generate the basic outfile names
     outfile_data = outfile_basename+'.txt'
+    ### 2) generate the basic outfile names
     if not if_multiple_files:
         # note: just ignore the last two arguments, they may be inconsistent with a single file, that's FINE. 
         outfiles_Biomek = [outfile_basename+'_Biomek.csv']
@@ -404,6 +407,7 @@ def generate_outfile_names(outfile_basename,if_multiple_files,if_mirror_files,nu
         # file_plate_names here can still be a single string or any number of other things - get a list
         file_plate_names = get_plate_name_list_from_input(number_of_files, file_plate_names)
         outfiles_Biomek = [outfile_basename+'_Biomek_'+plate+'.csv' for plate in file_plate_names]
+    ### 3) generate the mirror outfile names (if requested)
     if not if_mirror_files:
         outfiles_Biomek_mirror = []
     else:
@@ -444,8 +448,8 @@ def numbers_to_plate_and_well_IDs(N_samples, plate_size, N_plates, plate_IDs):
 
     if not len(plate_IDs)==N_plates:
         raise PlateTransferError("The number of plates must match the number of plate IDs provided!")
-    if not plate_size in plate_sizes:
-        raise PlateTransferError("Plate size must be an integer in %s!"%plate_sizes)
+    if not plate_size in Plate_type.plate_sizes:
+        raise PlateTransferError("Plate size must be an integer in %s!"%Plate_type.plate_sizes)
     if N_samples > plate_size*N_plates:
         raise PlateTransferError("Can't fit %s samples in %s %s-well plates!"%(N_samples,N_plates,plate_size))
     if N_samples <= plate_size*(N_plates-1):
@@ -566,15 +570,20 @@ def get_binary_code(listfile=None,matrixfile=None):
     return binary_code
 
 
-def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, Biomek_header=""):
+def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_commands_per_file=0, Biomek_header=""):
     """ Write Biomek_file_commands to one or more Biomek outfiles with given header.  
+
+    Biomek_file_commands and outfiles_Biomek must be lists of matching length (giving file contents and filenames).
+
     The outfiles_Biomek argument must be a list: containing a single element if there will be one outfile 
     (in which case Biomek_file_commands should be a single list of command strings), 
     or more for multiple outfiles (in which case Biomek_file_commands should be a dict of matching length, 
     with each key being the plate name which should match the Biomek file name, and each value being 
     a list of command strings to be written to the corresponding Biomek file). """
+    # TODO finish rewriting docstring! Make sure it makes sense; add the max_commands_per_file bit.
+    data_filename_list = []
     if len(outfiles_Biomek)==1:
-        save_line_list_as_file(Biomek_file_commands, outfiles_Biomek[0], header=Biomek_header)
+        data_filename_list.append((Biomek_file_commands, outfiles_Biomek[0]))
     else:
         # split the commands by source
         transfer_file_command_sets = split_command_list_by_source(Biomek_file_commands)
@@ -591,7 +600,14 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, Biomek_hea
                 raise PlateTransferError("Can't match the Biomek file names and command sets!")
         # write each data set to the corresponding file
         for ((_,data),outfilename) in zip(transfer_file_command_sets,outfiles_Biomek):
-            save_line_list_as_file(data, outfilename, header=Biomek_header)
+            data_filename_list.append((data, outfilename))
+    # now for each (data,filename) tuple, actually write it to a file (or to multiple files if splitting is necessary)
+    for line_list,filename in data_filename_list:
+        if max_commands_per_file==0:
+            save_line_list_as_file(line_list, filename, header=Biomek_header)
+        else:
+            pass
+            # TODO implement! Using split_command_list_to_max_commands; give a/b/c/ suffixes to outfiles.
 
 
 def write_data_to_outfile(sample_codewords, sample_positions, pool_positions, 
@@ -640,9 +656,9 @@ def define_option_parser():
                       help="Append S to the pool plate names for the mirror pooling Biomek files (default %default).")
 
     parser.add_option('-s','--size_of_sample_plates', type='int', default=96, metavar='M', 
-                      help="Sample (source) plate size (from %s)"%plate_sizes + " (default %default)")
+                      help="Sample (source) plate size (from %s)"%Plate_type.plate_sizes + " (default %default)")
     parser.add_option('-S','--size_of_pool_plates', type='int', default=6, metavar='M', 
-                      help="Pool (destination) plate size (from %s)"%plate_sizes + " (default %default)")
+                      help="Pool (destination) plate size (from %s)"%Plate_type.plate_sizes + " (default %default)")
     parser.add_option('-p','--number_of_sample_plates', type='int', default=1, metavar='N', 
                       help="Total number of sample (source) plates to use (default %default).")
     parser.add_option('-P','--number_of_pool_plates', type='int', default=4, metavar='N', 
@@ -658,6 +674,9 @@ def define_option_parser():
                       help="Generate multiple Biomek files, one per source plate (on by default).")
     parser.add_option('-o','--one_Biomek_file', action='store_false', dest='multiple_Biomek_files',
                       help="Generate a single Biomek file regardless of number of plates involved (off by default).")
+    parser.add_option('-x','--max_commands_per_file', type='int', default=0, metavar='N',
+                      help="Split Biomek command files so they contain to more than N commands "
+                          +"(use a/b/c/... suffixes for the split files) (0 means no maximum; default %default).")
 
     parser.add_option('-v','--volume_per_transfer', type='int', default=20, metavar='V', 
                       help="Liquid volume to use for each sample-to-pool transfer (default %default).")
@@ -677,6 +696,7 @@ def define_option_parser():
 
 def check_options_and_args(parser,options,args):
     """ Take optparse parser/options/args, check number of args, check required options and option conflicts. """
+    # TODO rewrite this so it doesn't require the parser as an argument, by moving the first try/except to __main__?  Why is it a problem, really? 
 
     try:
         [outfile_basename] = args
@@ -686,12 +706,12 @@ def check_options_and_args(parser,options,args):
                  + "The general output file will be X.txt, the Biomek output file will be X_Biomek.csv "
                  + "(or X_Biomek_Source1.csv, X_Biomek_Source2.csv, etc, with the -m option).")
 
-    if options.size_of_sample_plates not in plate_sizes or options.size_of_pool_plates not in plate_sizes:
-        parser.error("Plate sizes (-s and -S) must be in integer in %s! No other plate sizes are defined."%plate_sizes)
+    if not all([ (s in Plate_type.plate_sizes) for s in [options.size_of_sample_plates, options.size_of_pool_plates] ]):
+        sys.exit("Plate sizes (-s and -S) must be in integer in %s! No other sizes are defined."%Plate_type.plate_sizes)
     if not (options.number_of_samples>0 and options.number_of_pools>0):
-        parser.error("Positive -n and -N values required!")
+        sys.exit("Positive -n and -N values required!")
     if not bool(options.binary_code_list_file) ^ bool(options.binary_code_generator_file):  # is xor
-        parser.error("Exactly one of -c and -C must be provided!")
+        sys.exit("Exactly one of -c and -C must be provided!")
 
     # MAYBE-TODO could allow -p/-P to be automatically calculated from -n/-N and -s/-S?
 
@@ -725,7 +745,8 @@ def run_main_function(parser,options,args):
     Biomek_file_commands = make_Biomek_file_commands(sample_codewords, sample_positions, 
                                                                             pool_positions, options.volume_per_transfer)
     # write to outfiles
-    write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, options.Biomek_file_header)
+    write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, 
+                               options.max_commands_per_file, options.Biomek_file_header)
     write_data_to_outfile(sample_codewords, sample_positions, pool_positions, 
                           outfile_data, outfiles_Biomek+outfiles_Biomek_mirror, options)
     # generate mirror Biomek files: invert the codewords, add suffix to pool plate names, run same functions.
@@ -736,7 +757,8 @@ def run_main_function(parser,options,args):
                                                               options.number_of_pool_plates, mirror_output_plate_names)
         mirror_Biomek_file_commands = make_Biomek_file_commands(mirror_sample_codewords, sample_positions, 
                                                                 mirror_pool_positions, options.volume_per_transfer)
-        write_data_to_Biomek_files(outfiles_Biomek_mirror, mirror_Biomek_file_commands, options.Biomek_file_header)
+        write_data_to_Biomek_files(outfiles_Biomek_mirror, mirror_Biomek_file_commands, 
+                                   options.max_commands_per_file, options.Biomek_file_header)
 
 
 if __name__=='__main__':
@@ -748,7 +770,7 @@ if __name__=='__main__':
     if options.test_functionality:
         print("*** You used the -t option - ignoring all other options/arguments (including -T), "
               + "running the built-in simple test suite.")
-        print("Defined plate sizes: %s"%plate_sizes)
+        print("Defined plate sizes: %s"%Plate_type.plate_sizes)
         # tun unittest.main, passing it no arguments (by default it takes sys.argv and complains about the -t)
         unittest.main(argv=[sys.argv[0]])
         # MAYBE-TODO unittest.main automatically quits - there's no way of doing -t and -T at once.  Do I care?
@@ -779,6 +801,9 @@ if __name__=='__main__':
         print("*** Test runs finished. If you didn't get any errors, that's good (warnings are all right). "
               + "Check the output files to make sure they look reasonable (this is NOT done automatically!).")
         sys.exit(0)
+        # TODO move this to a separate function!!
+        # TODO write full tests that compare the outputs to expected files made by hand!!!
+        # MAYBE-TODO instead of using filecmp.cmp to compare expected/output files, is there something with more features? Like ignoring header lines or date lines or whatever? I guess diff has an --ignore-matching-lines=<REGEX> option, could use that... Or is there an actual python regression test library somewhere? 
 
     # If it's not a test run, just run the main functionality
     run_main_function(parser,options,args)
