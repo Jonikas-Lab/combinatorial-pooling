@@ -26,6 +26,7 @@ import filecmp
 # my modules
 import binary_code_utilities
 from general_utilities import invert_list_to_dict, save_line_list_as_file, write_header_data
+from testing_utilities import compare_files_with_regex
 
 class PlateTransferError(Exception):
     """ Exception for this file (does nothing interesting)."""
@@ -394,35 +395,38 @@ def do_test_run():
         print "Error: there is not error-correcting_codes folder in this directory - can't run tests."
         return 1
 
-    ### 1) tests with actual output reference files - the output is checked for correctness
-    print("*** CHECKED TEST RUNS - THE OUTPUT IS CHECKED AGAINST CORRECT REFERENCE FILES. ***")
+    ### 1) TESTS WITH ACTUAL OUTPUT REFERENCE FILES - THE OUTPUT IS CHECKED FOR CORRECTNESS
+    print("\n*** CHECKED TEST RUNS - THE OUTPUT IS CHECKED AGAINST CORRECT REFERENCE FILES. ***")
     test_folder = "test_data"
     outfile_base_name = "test_tmp"
     test_run = "-n 7 -N 3 -p 1 -P 1 -i Source -o -c error-correcting_codes/3-2-1_list -q"
     test_name = "testA"
-    print(" * New test run %s, with arguments: %s"%(test_name,test_run))
+    # MAYBE-TODO add clearer name/description strings to the test cases?
+    print(" * New checked-test run %s, with arguments: %s"%(test_name,test_run))
     (options, args) = parser.parse_args(test_run.split() + [os.path.join(test_folder,outfile_base_name)])
     run_main_function(parser,options,args)
     test_reference_files = [f for f in os.listdir(test_folder) if f.startswith(test_name)]
-    print test_reference_files
+    print "    (files: %s)"%test_reference_files
     for reffile in test_reference_files:
         reffile = os.path.join(test_folder,reffile)
         outfile = reffile.replace(test_name, outfile_base_name)
-        print "comparing %s, %s"%(outfile,reffile)
-        if filecmp.cmp(outfile, reffile, shallow=False):
+        with open(reffile,'r') as REFFILE:
+            with open(outfile,'r') as OUTFILE:
+                result = compare_files_with_regex(OUTFILE, REFFILE)
+        if result:
             os.remove(outfile)
         else:
             print("TEST FAILED!!  Reference file %s and output file %s differ - PLEASE COMPARE."%(reffile,outfile))
             return 1
-    # TODO I'd like to be able to compare files even if they have different date headers - I could use the command-line diff utility and its --ignore-matching-lines=<REGEX> option, or python difflib package (ndiff or SequenceMatcher or something http://docs.python.org/library/difflib.html) and the linejunk function.  Or just write something to remove the "date" lines from the output files before doing the comparison? No, that's bad.
-    # MAYBE-TODO Set up a more complicated file-to-reference comparison myself - like compare each reference/output line normally (i.e. they have to be identical), UNLESS the reference file line starts with <REGEX>, in which case check if the output file line matches the regex given in the reference file line.  See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle
 
-    print("*** Checked test runs finished - EVERYTHING IS FINE. ***")
     # TODO write more checked tests!
 
-    ### 2) smoke tests with no output reference files - just make sure they work and don't give errors
-    # TODO these should probably be optional or something...  Or a separate function?
-    print("*** SMOKE TEST RUNS - THE OUTPUT IS NOT CHECKED, WE'RE JUST MAKING SURE THERE ARE NO ERRORS. ***")
+    print("*** Checked test runs finished - EVERYTHING IS FINE. ***")
+    # MAYBE-TODO right now I'm using regular expressions and compare_files_with_regex to avoid having the tests fail due to different date or some such. The right way to do this is probably with Mock library - read up on that and change to it that method some point? (See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle)
+
+    ### 2) "SMOKE TESTS" WITH NO OUTPUT REFERENCE FILES - just make sure they work and don't give errors
+    # TODO may want to remove those after I have enough real tests above... Or at least make them optional.
+    print("\n*** SMOKE TEST RUNS - THE OUTPUT IS NOT CHECKED, WE'RE JUST MAKING SURE THERE ARE NO ERRORS. ***")
 
     if os.access("./test_outputs",os.F_OK):
         print("Test output files will be saved in the test_outputs directory (already present - removing it now).")
@@ -437,12 +441,12 @@ def do_test_run():
                 "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test_outputs/test3 -q"]
     # MAYBE-TODO add name/description strings to the test cases?
     for test_run in test_runs:
-        print(" * New test run, with arguments: %s"%test_run)
+        print(" * New smoke-test run, with arguments: %s"%test_run)
         # regenerate options with test argument string
         (options, args) = parser.parse_args(test_run.split())
         run_main_function(parser,options,args)
     print("*** Smoke test runs finished. If you didn't get any errors, that's good (warnings are all right). "
-          + "Check the output files to make sure they look reasonable (this is NOT done automatically!).")
+          + "You can check the output files to make sure they look reasonable (this is NOT done automatically!).")
     return 0
 
 ### General functions (not input/output or optparse-related or testing or main), in approximate order of use

@@ -1,8 +1,10 @@
-# Command line this file was generated with: robotic_plate_transfer.py -T
-# Path: <___>
-# Date: <___>,		User: <___>,		System: <___>
-# Full options: <___>
-# Corresponding Biomek file(s): ['test_outputs/test1_Biomek.csv']
+<IGNORE> This is written to be compared to an output file using testing_utilities.compare_files_with_regex: All the <REGEX> lines will be matched to the output file lines as regular expressions instead of requiring the lines to be identical, and all the <IGNORE> lines (like this one) will be ignored in the comparison.
+<IGNORE> Remember the REGEX lines are now regular expressions, so some characters need to be escaped!
+<REGEX># Command line this file was generated with: .*
+<REGEX># Path: .*
+<REGEX># Date: .*,		User: .*,		System: .*
+<REGEX># Full options: \{.*\}
+<REGEX># Corresponding Biomek file\(s\): .*
 
 sample_number,	plate_and_well_position,	codeword
 0,	Source,A1,	001
