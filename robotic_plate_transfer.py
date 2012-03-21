@@ -399,12 +399,16 @@ def do_test_run():
     print("\n*** CHECKED TEST RUNS - THE OUTPUT IS CHECKED AGAINST CORRECT REFERENCE FILES. ***")
     test_folder = "test_data"
     outfile_base_name = "test_tmp"
-    tests = [("testA", "-n 7 -N 3 -s 96 -p 1 -o -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q"), 
-             ("testB", "-n 7 -N 3 -s 6  -p 2 -o -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q"),
-             ("testC", "-n 7 -N 3 -s 6  -p 2 -m -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q")]
-    # MAYBE-TODO add clearer name/description strings to the test cases? YES - and print them to stdout so it's clear what's being tested
-    for test_name, test_run in tests:
-        print(" * New checked-test run %s, with arguments: %s"%(test_name,test_run))
+    tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, no mirroring", 
+              "-n 7 -N 3 -s 96 -p 1 -o -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q"), 
+             ("test_multi-source", "Multiple source plates (two 6-well), single Biomek file", 
+              "-n 7 -N 3 -s 6  -p 2 -o -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q"),
+             ("test_multi-outfile", "Multiple Biomek files: one per source plate - two source plates (two 6-well)", 
+              "-n 7 -N 3 -s 6  -p 2 -m -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q")]
+    # TODO write more checked tests!  At least for mirroring and for splitting outfiles by max command count
+
+    for test_name, test_descr, test_run in tests:
+        print(" * New checked-test run: %s (%s).\n   Arguments: %s"%(test_descr,test_name,test_run))
         (options, args) = parser.parse_args(test_run.split() + [os.path.join(test_folder,outfile_base_name)])
         run_main_function(parser,options,args)
         test_reference_files = [f for f in os.listdir(test_folder) if f.startswith(test_name)]
@@ -424,7 +428,7 @@ def do_test_run():
                 print("TEST FAILED!!  Reference file %s and output file %s differ - PLEASE COMPARE."%(reffile,outfile))
                 return 1
 
-    # TODO write more checked tests!  At least enough to replace the smoke-tests below, then I can remove those...
+    # MAYBE-TODO once I have enough checked tests to replace the smoke-tests below, remove those?
 
     print("*** Checked test runs finished - EVERYTHING IS FINE. ***")
     # MAYBE-TODO right now I'm using regular expressions and compare_files_with_regex to avoid having the tests fail due to different date or some such. The right way to do this is probably with Mock library - read up on that and change to it that method some point? (See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle)
