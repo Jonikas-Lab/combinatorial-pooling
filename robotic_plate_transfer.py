@@ -400,12 +400,15 @@ def do_test_run():
     test_folder = "test_data"
     outfile_base_name = "test_tmp"
     tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, no mirroring", 
-              "-n 7 -N 3 -s 96 -p 1 -o -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q"), 
+              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o    -i Source -c error-correcting_codes/3-2-1_list -q"), 
              ("test_multi-source", "Multiple source plates (two 6-well), single Biomek file", 
-              "-n 7 -N 3 -s 6  -p 2 -o -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q"),
+              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -o    -i Source -c error-correcting_codes/3-2-1_list -q"),
              ("test_multi-outfile", "Multiple Biomek files: one per source plate - two source plates (two 6-well)", 
-              "-n 7 -N 3 -s 6  -p 2 -m -S 6 -P 1 -i Source -c error-correcting_codes/3-2-1_list -q")]
-    # TODO write more checked tests!  At least for mirroring and for splitting outfiles by max command count
+              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -m    -i Source -c error-correcting_codes/3-2-1_list -q"),
+             ("test_mirror-outfile", "Mirror Biomek file: same as test_basic but with extra mirror Biomek file", 
+              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -M -i Source -c error-correcting_codes/3-2-1_list -q")]
+    # TODO write more checked tests!  At least another one for mirroring (with multiple outfiles) and one or two for splitting outfiles by max command count (once that's implemented!)
+    # MAYBE-TODO really I could just add an automatic mirror test to each test case instead of making mirror stuff separate test cases, since the output files from a non-mirror run are still all identical in a mirror run, there's just one or more extra Biomek_mirror output files.  But do I WANT to make mirror reference files for every single test case? Probably not.
 
     for test_name, test_descr, test_run in tests:
         print(" * New checked-test run: %s (%s).\n   Arguments: %s"%(test_descr,test_name,test_run))
@@ -427,8 +430,6 @@ def do_test_run():
             else:
                 print("TEST FAILED!!  Reference file %s and output file %s differ - PLEASE COMPARE."%(reffile,outfile))
                 return 1
-
-    # MAYBE-TODO once I have enough checked tests to replace the smoke-tests below, remove those?
 
     print("*** Checked test runs finished - EVERYTHING IS FINE. ***")
     # MAYBE-TODO right now I'm using regular expressions and compare_files_with_regex to avoid having the tests fail due to different date or some such. The right way to do this is probably with Mock library - read up on that and change to it that method some point? (See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle)
