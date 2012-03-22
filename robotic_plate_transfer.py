@@ -399,16 +399,16 @@ def do_test_run():
     test_folder = "test_data"
     outfile_base_name = "test_tmp"
     tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, no mirroring", 
-              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o      -i Source -c error-correcting_codes/3-2-1_list -q"), 
+              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o      -i Source -c error-correcting_codes/3-3-1_list -q"), 
              ("test_multi-source", "Multiple source plates (two 6-well), single Biomek file", 
-              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -o      -i Source -c error-correcting_codes/3-2-1_list -q"),
+              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -o      -i Source -c error-correcting_codes/3-3-1_list -q"),
              ("test_multi-outfile", "Multiple Biomek files: one per source plate - two source plates (two 6-well)", 
-              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -m      -i Source -c error-correcting_codes/3-2-1_list -q"),
+              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -m      -i Source -c error-correcting_codes/3-3-1_list -q"),
              ("test_split-outfile", "Biomek outfile split by size (max 4 lines/file) (one 6-well source plate)", 
-              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -x 4 -i Source -c error-correcting_codes/3-2-1_list -q"),
+              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -x 4 -i Source -c error-correcting_codes/3-3-1_list -q"),
              ("test_mirror-outfile", "Mirror Biomek file: same as test_basic but with extra mirror Biomek file", 
-              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -M   -i Source -c error-correcting_codes/3-2-1_list -q")]
-    # TODO write more checked tests!  Probably a combined one for split-outfile and mirror-outfile, or split-outfile and multi-outfile, or both... Also maybe one using a different error-correcting code (4-2-2?)
+              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -M   -i Source -c error-correcting_codes/3-3-1_list -q")]
+    # TODO write more checked tests!  Probably a combined one for split-outfile and mirror-outfile, or split-outfile and multi-outfile, or both... Also maybe one using a different error-correcting code (4-3-2?)
     # MAYBE-TODO really I could just add an automatic mirror test to each test case instead of making mirror stuff separate test cases, since the output files from a non-mirror run are still all identical in a mirror run, there's just one or more extra Biomek_mirror output files.  But do I WANT to make mirror reference files for every single test case? Probably not.
 
     for test_name, test_descr, test_run in tests:
