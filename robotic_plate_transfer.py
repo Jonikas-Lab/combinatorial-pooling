@@ -415,13 +415,17 @@ def do_test_run():
         (options, args) = parser.parse_args(test_run.split() + [os.path.join(test_folder,outfile_base_name)])
         run_main_function(parser,options,args)
         test_reference_files = [f for f in os.listdir(test_folder) if f.startswith(test_name)]
-        if test_reference_files:    print "    (files: %s)"%test_reference_files
-        else:                       print("    ERROR: No reference files found for test!! Going on to next test.")
-        # TODO should the error above make the test fail and stop, or keep going as it currently does?
+        if test_reference_files:    print "    (reference files: %s)"%test_reference_files
+        else:                       print("    WARNING: No reference files found for test!! Going on to next test.")
+        # TODO should the error above make the test fail and stop, or keep going as it currently does?  Actually, this is basically what the smoke-tests are - I could just integrate them in here!
+        # for each reference output files found, compare the tmp output file, 
+        #  and fail the test if the output file doesn't exist or differs from the reference file.
         for reffile in test_reference_files:
             reffile = os.path.join(test_folder,reffile)
             outfile = reffile.replace(test_name, outfile_base_name)
-            # TODO check if outfile exists, otherwise print sensible error!
+            if not os.path.exists(outfile):
+                print("TEST FAILED!!  Output file %s (to match reference file %s) doesn't exist."%(outfile,reffile))
+                return 1
             with open(reffile,'r') as REFFILE:
                 with open(outfile,'r') as OUTFILE:
                     result = compare_files_with_regex(OUTFILE, REFFILE)
