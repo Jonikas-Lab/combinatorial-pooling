@@ -21,8 +21,7 @@ import sys, os, shutil
 import unittest
 from collections import defaultdict
 from math import ceil
-from string import ascii_uppercase as letters    # this is 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-import filecmp
+from string import ascii_uppercase, ascii_lowercase     # this is 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and 'abcdef...'
 # my modules
 import binary_code_utilities
 from general_utilities import invert_list_to_dict, save_line_list_as_file, write_header_data
@@ -56,7 +55,7 @@ class Plate_type:
         The list is of the form ['A1','A2', ...] and the dictionary {'A1':1, 'A2':2, ...}."""
         self.well_ID_list = []
         for row in range(self.rows):
-            self.well_ID_list.extend(['%s%d'%(letters[row],col+1) for col in range(self.columns)])
+            self.well_ID_list.extend(['%s%d'%(ascii_uppercase[row],col+1) for col in range(self.columns)])
         assert len(self.well_ID_list) == self.size
         self.well_ID_dict = invert_list_to_dict(self.well_ID_list)
 
@@ -400,14 +399,16 @@ def do_test_run():
     test_folder = "test_data"
     outfile_base_name = "test_tmp"
     tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, no mirroring", 
-              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o    -i Source -c error-correcting_codes/3-2-1_list -q"), 
+              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o      -i Source -c error-correcting_codes/3-2-1_list -q"), 
              ("test_multi-source", "Multiple source plates (two 6-well), single Biomek file", 
-              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -o    -i Source -c error-correcting_codes/3-2-1_list -q"),
+              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -o      -i Source -c error-correcting_codes/3-2-1_list -q"),
              ("test_multi-outfile", "Multiple Biomek files: one per source plate - two source plates (two 6-well)", 
-              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -m    -i Source -c error-correcting_codes/3-2-1_list -q"),
+              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -m      -i Source -c error-correcting_codes/3-2-1_list -q"),
+             ("test_split-outfile", "Biomek outfile split by size (max 4 lines/file) (one 6-well source plate)", 
+              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -x 4 -i Source -c error-correcting_codes/3-2-1_list -q"),
              ("test_mirror-outfile", "Mirror Biomek file: same as test_basic but with extra mirror Biomek file", 
-              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -M -i Source -c error-correcting_codes/3-2-1_list -q")]
-    # TODO write more checked tests!  At least another one for mirroring (with multiple outfiles) and one or two for splitting outfiles by max command count (once that's implemented!)
+              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -M   -i Source -c error-correcting_codes/3-2-1_list -q")]
+    # TODO write more checked tests!  Probably a combined one for split-outfile and mirror-outfile, or split-outfile and multi-outfile, or both... Also maybe one using a different error-correcting code (4-2-2?)
     # MAYBE-TODO really I could just add an automatic mirror test to each test case instead of making mirror stuff separate test cases, since the output files from a non-mirror run are still all identical in a mirror run, there's just one or more extra Biomek_mirror output files.  But do I WANT to make mirror reference files for every single test case? Probably not.
 
     for test_name, test_descr, test_run in tests:
@@ -650,16 +651,23 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
     """ Write Biomek_file_commands to one or more Biomek outfiles with given header.  
 
     Biomek_file_commands and outfiles_Biomek must be lists of matching length (giving file contents and filenames).
+    Each output file will start with the header line (Biomek_header argument), then all the command lines.
 
     The outfiles_Biomek argument must be a list: containing a single element if there will be one outfile 
-    (in which case Biomek_file_commands should be a single list of command strings), 
-    or more for multiple outfiles (in which case Biomek_file_commands should be a dict of matching length, 
-    with each key being the plate name which should match the Biomek file name, and each value being 
-    a list of command strings to be written to the corresponding Biomek file). """
-    # TODO finish rewriting docstring! Make sure it makes sense; add the max_commands_per_file bit.
+      (in which case Biomek_file_commands should be a single list of command strings), 
+     or more for multiple outfiles (in which case Biomek_file_commands should be a dict of matching length, 
+      with each key being the plate name which should match the Biomek file name, and each value being 
+      a list of command strings to be written to the corresponding Biomek file). 
+
+    If max_commands_per_file is 0, each command list is simply written to the corresponding file; if it's N>0, 
+     each command list is split into sublists with at most N lines each, and written to files with _a/_b/_c/... suffixes.
+    """
+    ### First sort out which commands should go with which outfile: (the actual printing is done at the end)
     data_filename_list = []
+    # if there's just one outfile, simply print the whole command list to it
     if len(outfiles_Biomek)==1:
         data_filename_list.append((Biomek_file_commands, outfiles_Biomek[0]))
+    # if there are multiple outfiles, split the commands by source and print subsets to corresponding outfiles
     else:
         # split the commands by source
         transfer_file_command_sets = split_command_list_by_source(Biomek_file_commands)
@@ -677,13 +685,20 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
         # write each data set to the corresponding file
         for ((_,data),outfilename) in zip(transfer_file_command_sets,outfiles_Biomek):
             data_filename_list.append((data, outfilename))
-    # now for each (data,filename) tuple, actually write it to a file (or to multiple files if splitting is necessary)
-    for line_list,filename in data_filename_list:
+    ### now for each (data,filename) tuple, actually write it to a file (or to multiple files if splitting is necessary)
+    for command_list,filename in data_filename_list:
         if max_commands_per_file==0:
-            save_line_list_as_file(line_list, filename, header=Biomek_header)
+            save_line_list_as_file(command_list, filename, header=Biomek_header)
         else:
-            pass
-            # TODO implement! Using split_command_list_to_max_commands; give a/b/c/ suffixes to outfiles.
+            command_sublists = split_command_list_to_max_commands(command_list, max_commands_per_file)
+            file_suffixes = ascii_lowercase
+            if len(command_sublists) > len(file_suffixes):
+                sys.exit("Error: functionality for splitting file into more than 26 subfiles not implemented!")
+            for command_sublist, file_suffix in zip(command_sublists, file_suffixes):
+                basename, ext = os.path.splitext(filename)
+                filename_with_suffix = basename + '_' + file_suffix + ext
+                save_line_list_as_file(command_sublist, filename_with_suffix, header=Biomek_header)
+    # TODO should this return some information about the actual output filenames in the max_commands_per_file>0 case?  PROBABLY YES.  Maybe a dictionary from the original filename to the list of split filenames?  Should make sense...  Add that to the docstring if I do it.
 
 
 def write_data_to_outfile(sample_codewords, sample_positions, pool_positions, 
@@ -694,6 +709,7 @@ def write_data_to_outfile(sample_codewords, sample_positions, pool_positions,
     OUTFILE = open(outfile_data,'w')
     write_header_data(OUTFILE,options)
     OUTFILE.write("# Corresponding Biomek file(s): %s\n"%outfiles_Biomek)
+    # TODO outfiles_Biomek here doesn't include split a/b/c files if files were split to max_commands!!  FIX THAT. 
     # write the sample_number_position_codeword_list and pool_number_position_list data
     OUTFILE.write("\nsample_number,\tplate_and_well_position,\tcodeword\n")
     for (number,(codeword,position)) in enumerate(zip(sample_codewords,sample_positions)):
@@ -772,7 +788,7 @@ def define_option_parser():
 
 def check_options_and_args(parser,options,args):
     """ Take optparse parser/options/args, check number of args, check required options and option conflicts. """
-    # TODO rewrite this so it doesn't require the parser as an argument, by moving the first try/except to __main__?  Why is it a problem, really? 
+    # MAYBE-TODO rewrite this so it doesn't require the parser as an argument, by moving the first try/except to __main__?  Why is it a problem, really? 
 
     try:
         [outfile_basename] = args
@@ -838,7 +854,7 @@ def run_main_function(parser,options,args):
                                    options.max_commands_per_file, options.Biomek_file_header)
 
     # return list of all the outfiles generated
-    # TODO this doesn't include the outfile names generated if outfiles were split to fit under max_lines!
+    # TODO this doesn't include the outfile names generated if outfiles were split to fit under max_lines!  Does it matter? Do I ever use this return data?
     return (outfile_data, outfiles_Biomek, outfiles_Biomek_mirror)
 
 
