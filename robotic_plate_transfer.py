@@ -398,17 +398,20 @@ def do_test_run():
     print("\n*** CHECKED TEST RUNS - THE OUTPUT IS CHECKED AGAINST CORRECT REFERENCE FILES. ***")
     test_folder = "test_data"
     outfile_base_name = "test_tmp"
-    tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, no mirroring", 
-              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o      -i Source -c error-correcting_codes/3-3-1_list -q"), 
+    tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, using [3,2,1] code", 
+              "-n7 -N3  -p1 -s96 -P1 -S6   -o          -i Source -c error-correcting_codes/3-3-1_list -q"), 
              ("test_multi-source", "Multiple source plates (two 6-well), single Biomek file", 
-              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -o      -i Source -c error-correcting_codes/3-3-1_list -q"),
+              "-n7 -N3  -p2 -s6  -P1 -S6   -o          -i Source -c error-correcting_codes/3-3-1_list -q"),
              ("test_multi-outfile", "Multiple Biomek files: one per source plate - two source plates (two 6-well)", 
-              "-n 7 -N 3 -s 6  -p 2 -S 6 -P 1  -m      -i Source -c error-correcting_codes/3-3-1_list -q"),
+              "-n7 -N3  -p2 -s6  -P1 -S6   -m          -i Source -c error-correcting_codes/3-3-1_list -q"),
              ("test_split-outfile", "Biomek outfile split by size (max 4 lines/file) (one 6-well source plate)", 
-              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -x 4 -i Source -c error-correcting_codes/3-3-1_list -q"),
+              "-n7 -N3  -p1 -s96 -P1 -S6   -o -x4      -i Source -c error-correcting_codes/3-3-1_list -q"),
              ("test_mirror-outfile", "Mirror Biomek file: same as test_basic but with extra mirror Biomek file", 
-              "-n 7 -N 3 -s 96 -p 1 -S 6 -P 1  -o -M   -i Source -c error-correcting_codes/3-3-1_list -q")]
-    # TODO write more checked tests!  Probably a combined one for split-outfile and mirror-outfile, or split-outfile and multi-outfile, or both... Also maybe one using a different error-correcting code (4-3-2?)
+              "-n7 -N3  -p1 -s96 -P1 -S6   -o     -M   -i Source -c error-correcting_codes/3-3-1_list -q"),
+             ("test_other-code-432", "Using a [4,3,2] code; multiple source plates, single outfile, basic", 
+              "-n7 -N4  -p2 -s6  -P1 -S6   -o          -i Source -c error-correcting_codes/4-3-2_list -q"),
+             ("test_432-all-outfiles", "Same as test_other-code-432 but with multiple/split/mirror outfiles", 
+              "-n7 -N4  -p2 -s6  -P1 -S6   -m -x4 -M   -i Source -c error-correcting_codes/4-3-2_list -q")]
     # MAYBE-TODO really I could just add an automatic mirror test to each test case instead of making mirror stuff separate test cases, since the output files from a non-mirror run are still all identical in a mirror run, there's just one or more extra Biomek_mirror output files.  But do I WANT to make mirror reference files for every single test case? Probably not.
 
     for test_name, test_descr, test_run in tests:
@@ -416,9 +419,12 @@ def do_test_run():
         (options, args) = parser.parse_args(test_run.split() + [os.path.join(test_folder,outfile_base_name)])
         run_main_function(parser,options,args)
         test_reference_files = [f for f in os.listdir(test_folder) if f.startswith(test_name)]
-        if test_reference_files:    print "    (reference files: %s)"%test_reference_files
-        else:                       print("    WARNING: No reference files found for test!! Going on to next test.")
-        # TODO should the error above make the test fail and stop, or keep going as it currently does?  Actually, this is basically what the smoke-tests are - I could just integrate them in here!
+        if test_reference_files:    
+            print("    (reference files: %s)"%test_reference_files)
+        else:
+            print("TEST INCOMPLETE!!  No reference files found.")
+            return 1
+            # MAYBE-TODO alternatively I could just print a message and NOT fail, and use this method for smoke-tests...
         # for each reference output files found, compare the tmp output file, 
         #  and fail the test if the output file doesn't exist or differs from the reference file.
         for reffile in test_reference_files:
@@ -676,22 +682,45 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
         #  so they should always match once they're sorted, even if the plate names weren't sorted sensibly themselves.)
         transfer_file_command_sets = sorted(list(transfer_file_command_sets.items()))
         outfiles_Biomek.sort()
-        # make sure the resulting lists match by length and by plate name
-        if not len(transfer_file_command_sets) == len(outfiles_Biomek):
-            raise PlateTransferError("The number of Biomek outfiles and command data sets provided doesn't match!")
-        for ((set_name,_),outfilename) in zip(transfer_file_command_sets,outfiles_Biomek):
-            if not set_name in outfilename:
-                raise PlateTransferError("Can't match the Biomek file names and command sets!")
-        # write each data set to the corresponding file
-        for ((_,data),outfilename) in zip(transfer_file_command_sets,outfiles_Biomek):
-            data_filename_list.append((data, outfilename))
+        # make sure the resulting lists match by length (if there are more files than command sets, it may be all right)
+        if len(transfer_file_command_sets) > len(outfiles_Biomek):
+            raise PlateTransferError("ERROR: More Biomek command sets than outfile names were provided - can't write all!"
+                                     +"\n%s command sets, %s outfiles (%s)"%(len(transfer_file_command_sets), 
+                                                                             len(outfiles_Biomek), outfiles_Biomek))
+        elif len(transfer_file_command_sets) < len(outfiles_Biomek):
+            print("WARNING: Fewer Biomek command sets than outfile names were provided - some outfiles will be empty! "
+                  +"(may RARELY be expected, for mirror files if the all-ones keyword was present in original file)"
+                  +"\n%s command sets, %s outfiles (%s)"%(len(transfer_file_command_sets), 
+                                                          len(outfiles_Biomek), outfiles_Biomek))
+        # for each command set, find a single matching outfile by name (raise exception if found none/multiple), 
+        #  and queue the data to be written to that file.
+        outfiles_matched = set()
+        for (set_name,command_list) in transfer_file_command_sets:
+            matching_outfiles = [outfile for outfile in outfiles_Biomek if set_name in outfile]
+            # TODO will this become a problem if I have >10 source plates? Source1 will match Source10, unless I'm calling it Source01 instead of Source1 - am I?
+            if not matching_outfiles:
+                raise PlateTransferError("Can't match the command set %s to a Biomek outfile! (outfiles: %s)"%(set_name, 
+                                                                                                         outfiles_Biomek))
+            if len(matching_outfiles)>1:
+                raise PlateTransferError("The command set %s matched to multiple Biomek outfiles! (%s)"%(set_name, 
+                                                                                                       matching_outfiles))
+            outfile = matching_outfiles[0]
+            outfiles_matched.add(outfile)
+            data_filename_list.append((command_list, outfile))
+        # for outfiles with no matching contents, just queue them to be written empty
+        for outfile in set(outfiles_Biomek) - outfiles_matched:
+            data_filename_list.append(([], outfile))
+
     ### now for each (data,filename) tuple, actually write it to a file (or to multiple files if splitting is necessary)
     for command_list,filename in data_filename_list:
-        if max_commands_per_file==0:
+        # if not splitting, or if the file is short enough to not be split, just write it 
+        #  TODO should I do it this way when the file is too short to be split, or deal with it in the else clause, where it'll become a single file but with a suffix?  The former is cleaner but the latter would make it clear that the outfile has been checked for line-count...
+        if max_commands_per_file==0 or len(command_list) <= max_commands_per_file:
             save_line_list_as_file(command_list, filename, header=Biomek_header)
         else:
             command_sublists = split_command_list_to_max_commands(command_list, max_commands_per_file)
             file_suffixes = ascii_lowercase
+            # TODO should probably use numeric suffixes instead, and include total count so one can't get lost, like this: 1/3, 2/3, 3/3 (or 01/10 etc - fill with 0's to a sensible length so they get sorted right)
             if len(command_sublists) > len(file_suffixes):
                 sys.exit("Error: functionality for splitting file into more than 26 subfiles not implemented!")
             for command_sublist, file_suffix in zip(command_sublists, file_suffixes):

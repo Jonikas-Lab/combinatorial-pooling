@@ -1,0 +1,5 @@
+SourcePlt,SourceWell,DestPlt,DestWell,Volume
+Source1,B2,Destination_mirror,A2,20
+Source1,B2,Destination_mirror,B1,20
+Source1,B3,Destination_mirror,A3,20
+Source1,B3,Destination_mirror,B1,20
