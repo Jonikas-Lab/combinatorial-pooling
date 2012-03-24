@@ -481,7 +481,7 @@ def generate_outfile_names(outfile_basename,if_multiple_files,if_mirror_files,nu
       (assuming get_plate_name_list_from_input(number_of_files,file_plate_names) returns something like [A,B,...]) 
     If if_mirror_files is true, Biomek_mirror (M above) is []; otherwise it's the same as Biomek with a _mirror suffix."""
     ### 1) generate the basic outfile names
-    outfile_data = outfile_basename+'.txt'
+    main_outfile = outfile_basename+'.txt'
     ### 2) generate the basic outfile names
     if not if_multiple_files:
         # note: just ignore the last two arguments, they may be inconsistent with a single file, that's FINE. 
@@ -497,7 +497,7 @@ def generate_outfile_names(outfile_basename,if_multiple_files,if_mirror_files,nu
         outfiles_Biomek_mirror = []
     else:
         outfiles_Biomek_mirror = [name.replace('_Biomek','_Biomek_mirror') for name in outfiles_Biomek]
-    return (outfile_data,outfiles_Biomek,outfiles_Biomek_mirror)
+    return (main_outfile,outfiles_Biomek,outfiles_Biomek_mirror)
 
 
 def get_plate_name_list_from_input(N_plates,ID_input):
@@ -657,7 +657,7 @@ def get_binary_code(length,listfile=None,matrixfile=None):
 
 
 def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_commands_per_file=0, Biomek_header=""):
-    """ Write Biomek_file_commands to one or more Biomek outfiles with given header.  
+    """ Write Biomek_file_commands to outfiles_Biomek, optionally splitting; return filename:real_filename(s) dict.  
 
     Biomek_file_commands and outfiles_Biomek must be lists of matching length (giving file contents and filenames).
     Each output file will start with the header line (Biomek_header argument), then all the command lines.
@@ -670,8 +670,12 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
 
     If max_commands_per_file is 0, each command list is simply written to the corresponding file; if it's N>0, 
      each command list is split into sublists with at most N lines each, and written to files with _a/_b/_c/... suffixes.
+    
+    The return value is a outfile_name:real_outfile_name(s) dictionary: the keys will be the elements of outfiles_Biomek,
+     and the values will be either tuples of *_partXofY partial files due to splitting into max_commands_per_file, 
+     or identical to the keys if no splitting was one (i.e. max_commands_per_file was 0).
     """
-    ### First sort out which commands should go with which outfile: (the actual printing is done at the end)
+    ### First make a list of which commands should go with which outfile: (the actual printing is done at the end)
     data_filename_list = []
     # if there's just one outfile, simply print the whole command list to it
     if len(outfiles_Biomek)==1:
@@ -716,10 +720,14 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
             data_filename_list.append(([], outfile))
 
     ### now for each (data,filename) tuple, actually write it to a file (or to multiple files if splitting is necessary)
+    # keep track of the final output filenames in a outfile_Biomek:final_outfile(s) dictionary
+    #  (the names can change if file needs to be split due to max_commands_per_file)
+    final_output_filenames = {}
     for command_list,filename in data_filename_list:
         # if there's no line-count max per file, just write lines to file
         if max_commands_per_file==0:
             save_line_list_as_file(command_list, filename, header=Biomek_header)
+            final_output_filenames[filename] = filename
         # otherwise split lines into multiple files with <X lines each, with _n/N filename suffixes.
         #  (if the file has few enough lines not to be split, just give it a _1/1 suffix to make that clear)
         else:
@@ -728,23 +736,27 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
             if not command_sublists:    command_sublists = [[]]
             N_total_files = len(command_sublists)
             N_digits = len(str(N_total_files))
+            final_output_filenames[filename] = []
             for n,command_sublist in enumerate(command_sublists):
                 basename, ext = os.path.splitext(filename)
                 file_suffix = "part%0*dof%d"%(N_digits, n+1, N_total_files)
                 filename_with_suffix = basename + '_' + file_suffix + ext
                 save_line_list_as_file(command_sublist, filename_with_suffix, header=Biomek_header)
-    # TODO should this return some information about the actual output filenames in the max_commands_per_file>0 case?  PROBABLY YES.  Maybe a dictionary from the original filename to the list of split filenames?  Should make sense...  Add that to the docstring if I do it.
+                final_output_filenames[filename].append(filename_with_suffix)
+    return final_output_filenames
 
 
 def write_data_to_outfile(sample_codewords, sample_positions, pool_positions, 
-                          outfile_data, outfiles_Biomek, options=None):
-    """ Write data to main outfile: header information (command, path, date/time, options - all as #-start comments), 
+                          main_outfile, outfiles_Biomek, options=None):
+    """ Write data to main_outfile: header information (command, path, date/time, options - all as #-start comments), 
     sample numbers/positions/codewords, and pool numbers/positions. """
     # print all the usual header information (command, path, date/time, options)
-    OUTFILE = open(outfile_data,'w')
+    OUTFILE = open(main_outfile,'w')
     write_header_data(OUTFILE,options)
-    OUTFILE.write("# Corresponding Biomek file(s): %s\n"%outfiles_Biomek)
-    # TODO outfiles_Biomek here doesn't include split a/b/c files if files were split to max_commands!!  FIX THAT. 
+    # make nice outfile list for printing: strip outermost [] pair (with [1:-1]), get rid of quotes, 
+    #  and remove the folder name, since they're in the same folder as the main_outfile
+    nice_outfile_list = str(outfiles_Biomek)[1:-1].replace("'",'').replace(os.path.dirname(main_outfile)+os.path.sep,'')
+    OUTFILE.write("# Corresponding Biomek file(s): %s\n"%nice_outfile_list)
     # write the sample_number_position_codeword_list and pool_number_position_list data
     OUTFILE.write("\nsample_number,\tplate_and_well_position,\tcodeword\n")
     for (number,(codeword,position)) in enumerate(zip(sample_codewords,sample_positions)):
@@ -854,8 +866,7 @@ def run_main_function(parser,options,args):
     options,outfile_basename = check_options_and_args(parser,options,args)
     outfiles = generate_outfile_names(outfile_basename, options.multiple_Biomek_files, options.add_mirror_pooling_files, 
                                       options.number_of_sample_plates, options.sample_plate_IDs)
-    (outfile_data, outfiles_Biomek, outfiles_Biomek_mirror) = outfiles
-    if not options.quiet:  print("Output files: %s"%(outfiles,))
+    (main_outfile, outfiles_Biomek, outfiles_Biomek_mirror) = outfiles
     # assign codewords to samples
     binary_code = get_binary_code(options.number_of_pools, 
                                   options.binary_code_list_file, options.binary_code_generator_file)
@@ -872,12 +883,7 @@ def run_main_function(parser,options,args):
     # generate the Biomek transfer command list based on sample codewords and sample/pool positions
     Biomek_file_commands = make_Biomek_file_commands(sample_codewords, sample_positions, 
                                                                             pool_positions, options.volume_per_transfer)
-    # write to outfiles
-    write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, 
-                               options.max_commands_per_file, options.Biomek_file_header)
-    write_data_to_outfile(sample_codewords, sample_positions, pool_positions, 
-                          outfile_data, outfiles_Biomek+outfiles_Biomek_mirror, options)
-    # generate mirror Biomek files: invert the codewords, add suffix to pool plate names, run same functions.
+    # optionally generate mirror Biomek files: invert the codewords, add suffix to pool plate names, run same functions.
     if options.add_mirror_pooling_files:
         mirror_sample_codewords = [~codeword for codeword in sample_codewords]
         mirror_output_plate_names = [plate_name+options.mirror_pool_plate_suffix for plate_name in output_plate_names]
@@ -885,12 +891,28 @@ def run_main_function(parser,options,args):
                                                               options.number_of_pool_plates, mirror_output_plate_names)
         mirror_Biomek_file_commands = make_Biomek_file_commands(mirror_sample_codewords, sample_positions, 
                                                                 mirror_pool_positions, options.volume_per_transfer)
-        write_data_to_Biomek_files(outfiles_Biomek_mirror, mirror_Biomek_file_commands, 
-                                   options.max_commands_per_file, options.Biomek_file_header)
 
-    # return list of all the outfiles generated
-    # TODO this doesn't include the outfile names generated if outfiles were split to fit under max_lines!  Does it matter? Do I ever use this return data?
-    return (outfile_data, outfiles_Biomek, outfiles_Biomek_mirror)
+    ### write data to outfiles, keeping track of real outfile names as returned by data-writing functions
+    Biomek_real_outfile_dict = {main_outfile: main_outfile}
+    # write commands to Biomek outfiles (normal, and optionally mirror)
+    Biomek_normalfile_dict = write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, 
+                                                        options.max_commands_per_file, options.Biomek_file_header)
+    Biomek_real_outfile_dict.update(Biomek_normalfile_dict)
+    if options.add_mirror_pooling_files:
+        Biomek_mirrorfile_dict = write_data_to_Biomek_files(outfiles_Biomek_mirror, mirror_Biomek_file_commands, 
+                                                            options.max_commands_per_file, options.Biomek_file_header)
+        Biomek_real_outfile_dict.update(Biomek_mirrorfile_dict)
+    # make nice sorted list of real Biomek outfiles (normal and mirror) to write to main_outfile and return
+    outfiles_Biomek = [Biomek_real_outfile_dict[f] for f in outfiles_Biomek]
+    outfiles_Biomek_mirror = [Biomek_real_outfile_dict[f] for f in outfiles_Biomek_mirror]
+    # write full data (including a header, all Biomek outfile names, samples/destinations/codewords) to main_outfile
+    write_data_to_outfile(sample_codewords, sample_positions, pool_positions, 
+                          main_outfile, outfiles_Biomek+outfiles_Biomek_mirror, options)
+    # return (and optionally print) list of all the outfiles generated
+    if not options.quiet:  
+        print("Overview output file: %s"%main_outfile)
+        print("Biomek output files: %s, %s"%(outfiles_Biomek, outfiles_Biomek_mirror))
+    return (main_outfile, outfiles_Biomek, outfiles_Biomek_mirror)
 
 
 if __name__=='__main__':
