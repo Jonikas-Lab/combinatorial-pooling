@@ -202,6 +202,8 @@ class Testing__get_plate_name_list_from_input(unittest.TestCase):
         assert get_plate_name_list_from_input(4,'A,B,C,D') == ['A','B','C','D']
         # passing a one-element string is allowed for any N - plates are numbered automatically
         assert get_plate_name_list_from_input(4,'A') == ['A1','A2','A3','A4']
+        # if a number >=10 is given, plate numbers should be zero-padded so that they sort correctly
+        assert get_plate_name_list_from_input(10,'A') == ['A01','A02','A03','A04','A05','A06','A07','A08','A09','A10']
         # if the second arg is a LIST, not string, with one element, fail 
         self.assertRaises(PlateTransferError, get_plate_name_list_from_input, 4,['A'])
 
@@ -520,7 +522,8 @@ def get_plate_name_list_from_input(N_plates,ID_input):
         return split_IDs
     # or it's a single plate name and sequential numbers should be appended to it to get the list.
     elif len(split_IDs) == 1:
-        return ['%s%d'%(ID_input,n+1) for n in range(N_plates)]
+        N_digits = len(str(N_plates))
+        return ['%s%0*d'%(ID_input, N_digits, n+1) for n in range(N_plates)]
     else:
         raise PlateTransferError("Can't figure out how to name %s plates using input \"%s\"!"%(N_plates,ID_input))
 
@@ -697,13 +700,14 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
         outfiles_matched = set()
         for (set_name,command_list) in transfer_file_command_sets:
             matching_outfiles = [outfile for outfile in outfiles_Biomek if set_name in outfile]
-            # TODO will this become a problem if I have >10 source plates? Source1 will match Source10, unless I'm calling it Source01 instead of Source1 - am I?
             if not matching_outfiles:
                 raise PlateTransferError("Can't match the command set %s to a Biomek outfile! (outfiles: %s)"%(set_name, 
                                                                                                          outfiles_Biomek))
             if len(matching_outfiles)>1:
                 raise PlateTransferError("The command set %s matched to multiple Biomek outfiles! (%s)"%(set_name, 
-                                                                                                       matching_outfiles))
+                                                                                                       matching_outfiles)
+                                         +" - if you generated your source plate names by hand, try changing them.")
+            # MAYBE-TODO multiple matches may be an issue if the user gives a list of source plate names and they're of different lengths - for instance Plate1 will match both Plate1 and Plate10 (when my program auto-generates numbered plates, they're Plate01, so this won't happen).  How to correct for that?  Eh, let the user see the warning and rename her plates.
             outfile = matching_outfiles[0]
             outfiles_matched.add(outfile)
             data_filename_list.append((command_list, outfile))
