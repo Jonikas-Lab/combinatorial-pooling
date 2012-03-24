@@ -717,18 +717,20 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
 
     ### now for each (data,filename) tuple, actually write it to a file (or to multiple files if splitting is necessary)
     for command_list,filename in data_filename_list:
-        # if not splitting, or if the file is short enough to not be split, just write it 
-        #  TODO should I do it this way when the file is too short to be split, or deal with it in the else clause, where it'll become a single file but with a suffix?  The former is cleaner but the latter would make it clear that the outfile has been checked for line-count...
-        if max_commands_per_file==0 or len(command_list) <= max_commands_per_file:
+        # if there's no line-count max per file, just write lines to file
+        if max_commands_per_file==0:
             save_line_list_as_file(command_list, filename, header=Biomek_header)
+        # otherwise split lines into multiple files with <X lines each, with _n/N filename suffixes.
+        #  (if the file has few enough lines not to be split, just give it a _1/1 suffix to make that clear)
         else:
             command_sublists = split_command_list_to_max_commands(command_list, max_commands_per_file)
-            file_suffixes = ascii_lowercase
-            # TODO should probably use numeric suffixes instead, and include total count so one can't get lost, like this: 1/3, 2/3, 3/3 (or 01/10 etc - fill with 0's to a sensible length so they get sorted right)
-            if len(command_sublists) > len(file_suffixes):
-                sys.exit("Error: functionality for splitting file into more than 26 subfiles not implemented!")
-            for command_sublist, file_suffix in zip(command_sublists, file_suffixes):
+            # force printing empty files - make command_sublists contain an empty list rather than being empty itself
+            if not command_sublists:    command_sublists = [[]]
+            N_total_files = len(command_sublists)
+            N_digits = len(str(N_total_files))
+            for n,command_sublist in enumerate(command_sublists):
                 basename, ext = os.path.splitext(filename)
+                file_suffix = "part%0*dof%d"%(N_digits, n+1, N_total_files)
                 filename_with_suffix = basename + '_' + file_suffix + ext
                 save_line_list_as_file(command_sublist, filename_with_suffix, header=Biomek_header)
     # TODO should this return some information about the actual output filenames in the max_commands_per_file>0 case?  PROBABLY YES.  Maybe a dictionary from the original filename to the list of split filenames?  Should make sense...  Add that to the docstring if I do it.
