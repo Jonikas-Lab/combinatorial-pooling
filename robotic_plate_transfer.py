@@ -656,7 +656,8 @@ def get_binary_code(length,listfile=None,matrixfile=None):
     return binary_code
 
 
-def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_commands_per_file=0, Biomek_header=""):
+def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_commands_per_file=0, 
+                               Biomek_header="", quiet=False):
     """ Write Biomek_file_commands to outfiles_Biomek, optionally splitting; return filename:real_filename(s) dict.  
 
     Biomek_file_commands and outfiles_Biomek must be lists of matching length (giving file contents and filenames).
@@ -694,7 +695,7 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
             raise PlateTransferError("ERROR: More Biomek command sets than outfile names were provided - can't write all!"
                                      +"\n%s command sets, %s outfiles (%s)"%(len(transfer_file_command_sets), 
                                                                              len(outfiles_Biomek), outfiles_Biomek))
-        elif len(transfer_file_command_sets) < len(outfiles_Biomek):
+        elif len(transfer_file_command_sets) < len(outfiles_Biomek) and not quiet:
             print("WARNING: Fewer Biomek command sets than outfile names were provided - some outfiles will be empty! "
                   +"(may RARELY be expected, for mirror files if the all-ones keyword was present in original file)"
                   +"\n%s command sets, %s outfiles (%s)"%(len(transfer_file_command_sets), 
@@ -896,11 +897,11 @@ def run_main_function(parser,options,args):
     Biomek_real_outfile_dict = {main_outfile: main_outfile}
     # write commands to Biomek outfiles (normal, and optionally mirror)
     Biomek_normalfile_dict = write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, 
-                                                        options.max_commands_per_file, options.Biomek_file_header)
+                                        options.max_commands_per_file, options.Biomek_file_header, quiet=options.quiet)
     Biomek_real_outfile_dict.update(Biomek_normalfile_dict)
     if options.add_mirror_pooling_files:
         Biomek_mirrorfile_dict = write_data_to_Biomek_files(outfiles_Biomek_mirror, mirror_Biomek_file_commands, 
-                                                            options.max_commands_per_file, options.Biomek_file_header)
+                                        options.max_commands_per_file, options.Biomek_file_header, quiet=options.quiet)
         Biomek_real_outfile_dict.update(Biomek_mirrorfile_dict)
     # make nice sorted list of real Biomek outfiles (normal and mirror) to write to main_outfile and return
     outfiles_Biomek = [Biomek_real_outfile_dict[f] for f in outfiles_Biomek]
