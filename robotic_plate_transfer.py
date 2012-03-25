@@ -84,7 +84,9 @@ tmp_str_plate_types = dict([(str(n),plate_def) for n,plate_def in plate_type_def
 plate_type_definitions.update(tmp_str_plate_types)
 # additional 'fake 6-well' plate size - pretending it's a 96-well but really just using 6 of its wells and putting a physical 6-well plate in there instead, since for some reason the Biomek has trouble accepting a formal 6-well plate.
 plate_type_definitions['fake6'] = Plate_type(size=6, well_ID_list=['B2','B7','B11','G2','G7','G11'])
+# making a nice string-only no-duplicates prettily-sorted version of the allowed plate type names, for printing
 defined_plate_types = sorted( sorted( set([str(x) for x in plate_type_definitions.keys()])), key = lambda x: len(x) )
+defined_plate_types = ', '.join(defined_plate_types)
 
 
 ### Unit-tests for the classes/setup above and "general functions" below
@@ -893,10 +895,11 @@ def define_option_parser():
     parser.add_option('-u','--mirror_pool_plate_suffix', default='_mirror', metavar='S', 
                       help="Append S to the pool plate names for the mirror pooling Biomek files (default %default).")
 
-    parser.add_option('-s','--size_of_sample_plates', type='choice', choices=defined_plate_types, default=96, metavar='M', 
-                      help="Sample (source) plate size (allowed values: %s)"%defined_plate_types +" (default %default)")
-    parser.add_option('-S','--size_of_pool_plates', type='choice', choices=defined_plate_types, default=6, metavar='M', 
-                      help="Pool (destination) plate size (allowed values: %s)"%defined_plate_types +" (default %default)")
+    plate_size_choices = list(set([str(x) for x in plate_type_definitions.keys()]))     # strings only
+    parser.add_option('-s','--size_of_sample_plates', type='choice', choices=plate_size_choices, default='96', metavar='M',
+                      help="Sample (source) plate size (allowed values: %s) "%defined_plate_types +"(default %default)")
+    parser.add_option('-S','--size_of_pool_plates', type='choice',choices=plate_size_choices, default='fake6', metavar='M',
+                      help="Pool (destination) plate size (allowed values: %s) "%defined_plate_types +"(default %default)")
     parser.add_option('-p','--number_of_sample_plates', type='int', default=1, metavar='N', 
                       help="Total number of sample (source) plates to use (default %default).")
     parser.add_option('-P','--number_of_pool_plates', type='int', default=4, metavar='N', 
@@ -946,7 +949,7 @@ def check_options_and_args(parser,options,args):
 
     for curr_plate_size in [options.size_of_sample_plates, options.size_of_pool_plates]:
         if not curr_plate_size in plate_type_definitions:
-            sys.exit("Plate sizes (-s and -S) must be one of the defined sizes (%s)!"%(', '.join(defined_plate_types)))
+            sys.exit("Plate sizes (-s and -S) must be one of the defined sizes (%s)!"%defined_plate_types)
     if not (options.number_of_samples>0 and options.number_of_pools>0):
         sys.exit("Positive -n and -N values required!")
     if not bool(options.binary_code_list_file) ^ bool(options.binary_code_generator_file):  # is xor
