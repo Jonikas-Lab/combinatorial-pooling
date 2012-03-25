@@ -744,33 +744,36 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
     return final_output_filenames
 
 
-def write_data_to_outfile(sample_codewords, sample_positions, pool_positions, 
-                          main_outfile, outfiles_Biomek, options=None):
+def write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool_positions, outfiles_Biomek, 
+                          mirror_sample_codewords=[], mirror_pool_positions=[], transfer_volume=0, options=None):
     """ Write data to main_outfile: header information (command, path, date/time, options - all as #-start comments), 
     sample numbers/positions/codewords, and pool numbers/positions. """
     ### print all the usual header information (command, path, date/time, options)
     OUTFILE = open(main_outfile,'w')
     write_header_data(OUTFILE,options)
     ### write the detailed sample/pool number/position/codeword/volume data
-    volume = options.volume_per_transfer
     # sample data
     sample_transfers = []
     OUTFILE.write("\nsample_number\tplate_and_well_position\tcodeword\ttransfers\tvolume (ul)\n")
     for (number,(codeword,position)) in enumerate(zip(sample_codewords,sample_positions)):
         total_transfers = codeword.weight()
-        total_volume = total_transfers * volume
+        total_volume = total_transfers * transfer_volume
         OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, codeword.string(), total_transfers, total_volume))
         sample_transfers.append(total_transfers)
-    # pool data
+    # pool data (first normal, then mirror, with a header for each)
     pool_transfers = []
-    OUTFILE.write("\npool_number\tplate_and_well_position\tpooling_scheme\ttransfers\tvolume (ul)\n")
-    for (number,position) in enumerate(pool_positions):
-        pooling_scheme = ''.join([codeword.string()[number] for codeword in sample_codewords])
-        total_transfers = pooling_scheme.count('1')
-        total_volume = total_transfers * volume
-        OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, pooling_scheme, total_transfers, total_volume))
-        pool_transfers.append(total_transfers)
-    # TODO add data for mirror destinations as well as normal ones, if used!
+    OUTFILE.write("\n")
+    for setname, curr_pool_positions, curr_sample_codewords in [('', pool_positions, sample_codewords), 
+                                                            ('mirror_', mirror_pool_positions, mirror_sample_codewords)]:
+        # only print the header if there's any content
+        if curr_pool_positions:
+            OUTFILE.write("%spool_number\tplate_and_well_position\tpooling_scheme\ttransfers\tvolume (ul)\n"%setname)
+        for (number,position) in enumerate(curr_pool_positions):
+            pooling_scheme = ''.join([codeword.string()[number] for codeword in curr_sample_codewords])
+            total_transfers = pooling_scheme.count('1')
+            total_volume = total_transfers * transfer_volume
+            OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, pooling_scheme, total_transfers, total_volume))
+            pool_transfers.append(total_transfers)
     ### print footer info: corresponding Biomek outfile list, min/max transfers/volume per sample/pool
     # make nice outfile list for printing: strip outermost [] pair (with [1:-1]), get rid of quotes, 
     #  and remove the folder name, since they're in the same folder as the main_outfile
@@ -780,10 +783,10 @@ def write_data_to_outfile(sample_codewords, sample_positions, pool_positions,
                                                         len(pool_positions) if options.add_mirror_pooling_files else 0))
     min_transfers, max_transfers = min(sample_transfers), max(sample_transfers)
     OUTFILE.write("Total transfers from samples: %s-%s per sample (%s-%s ul)\n"%(min_transfers, max_transfers, 
-                                                                        min_transfers*volume, max_transfers*volume))
+                                                        min_transfers*transfer_volume, max_transfers*transfer_volume))
     min_transfers, max_transfers = min(pool_transfers), max(pool_transfers)
     OUTFILE.write("Total transfers into pools: %s-%s per pool (%s-%s ul)\n"%(min_transfers, max_transfers, 
-                                                                        min_transfers*volume, max_transfers*volume))
+                                                        min_transfers*transfer_volume, max_transfers*transfer_volume))
     OUTFILE.close()
 
 
@@ -910,6 +913,8 @@ def run_main_function(parser,options,args):
                                                               options.number_of_pool_plates, mirror_output_plate_names)
         mirror_Biomek_file_commands = make_Biomek_file_commands(mirror_sample_codewords, sample_positions, 
                                                                 mirror_pool_positions, options.volume_per_transfer)
+    else:
+        mirror_sample_codewords, mirror_pool_positions = [], []
 
     ### write data to outfiles, keeping track of real outfile names as returned by data-writing functions
     Biomek_real_outfile_dict = {main_outfile: main_outfile}
@@ -925,8 +930,9 @@ def run_main_function(parser,options,args):
     outfiles_Biomek = [Biomek_real_outfile_dict[f] for f in outfiles_Biomek]
     outfiles_Biomek_mirror = [Biomek_real_outfile_dict[f] for f in outfiles_Biomek_mirror]
     # write full data (including a header, all Biomek outfile names, samples/destinations/codewords) to main_outfile
-    write_data_to_outfile(sample_codewords, sample_positions, pool_positions, 
-                          main_outfile, outfiles_Biomek+outfiles_Biomek_mirror, options)
+    write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool_positions, 
+                          outfiles_Biomek+outfiles_Biomek_mirror, mirror_sample_codewords, mirror_pool_positions, 
+                          options.volume_per_transfer, options)
     # return (and optionally print) list of all the outfiles generated
     if not options.quiet:  
         print("Overview output file: %s"%main_outfile)
