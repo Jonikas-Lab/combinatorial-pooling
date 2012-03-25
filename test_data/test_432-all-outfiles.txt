@@ -26,7 +26,7 @@ mirror_pool_number	plate_and_well_position	pooling_scheme	transfers	volume (ul)
 3	Destination_mirror,B1	0010110	3	60
 
 <IGNORE> The Biomek outfile filenames are given as test_.*_ rather than containing the real testname because test-run output files that will be compared to these reference files obviously must have different names.
-<REGEX># Corresponding Biomek file\(s\): \[test_.*_Biomek_Source1_part1of3.csv, test_.*_Biomek_Source1_part2of3.csv, test_.*_Biomek_Source1_part3of3.csv\], \[test_.*_Biomek_Source2_part1of1.csv\], \[test_.*_Biomek_mirror_Source1_part1of3.csv, test_.*_Biomek_mirror_Source1_part2of3.csv, test_.*_Biomek_mirror_Source1_part3of3.csv\], \[test_.*_Biomek_mirror_Source2_part1of1.csv\]
+<REGEX># Corresponding Biomek command file\(s\): \[test_.*_Biomek_Source1_part1of3.csv, test_.*_Biomek_Source1_part2of3.csv, test_.*_Biomek_Source1_part3of3.csv\], \[test_.*_Biomek_Source2_part1of1.csv\], \[test_.*_Biomek_mirror_Source1_part1of3.csv, test_.*_Biomek_mirror_Source1_part2of3.csv, test_.*_Biomek_mirror_Source1_part3of3.csv\], \[test_.*_Biomek_mirror_Source2_part1of1.csv\]
 # Total 7 samples into 4 pools (and 4 mirror pools)
 Total transfers from samples: 2-4 per sample (40-80 ul)
 Total transfers into pools: 3-4 per pool (60-80 ul)

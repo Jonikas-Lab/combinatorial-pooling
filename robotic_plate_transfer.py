@@ -746,8 +746,14 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
 
 def write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool_positions, outfiles_Biomek, 
                           mirror_sample_codewords=[], mirror_pool_positions=[], transfer_volume=0, options=None):
-    """ Write data to main_outfile: header information (command, path, date/time, options - all as #-start comments), 
-    sample numbers/positions/codewords, and pool numbers/positions. """
+    """ Write data to main_outfile: header, detailed sample/pool data, info on Biomek outfiles and overall counts/volumes.
+
+    Header information: command, path, date/time, options - all as #-start comments. 
+    Sample/pool data: tab-separated tables (with headers) containing numbers, plate/well positions, codewords or pooling 
+     schemes, transfer counts and total transfer volumes - one table for samples, one for pools, one for mirror pools. 
+    Footer: list of corresponding Biomek command files, info on total sample/pool/mirrorpool numbers, 
+     info on the min/max transfer/count/volume for samples/pools.
+    """
     ### print all the usual header information (command, path, date/time, options)
     OUTFILE = open(main_outfile,'w')
     write_header_data(OUTFILE,options)
@@ -778,9 +784,9 @@ def write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool
     # make nice outfile list for printing: strip outermost [] pair (with [1:-1]), get rid of quotes, 
     #  and remove the folder name, since they're in the same folder as the main_outfile
     nice_outfile_list = str(outfiles_Biomek)[1:-1].replace("'",'').replace(os.path.dirname(main_outfile)+os.path.sep,'')
-    OUTFILE.write("\n# Corresponding Biomek file(s): %s\n"%nice_outfile_list)
+    OUTFILE.write("\n# Corresponding Biomek command file(s): %s\n"%nice_outfile_list)
     OUTFILE.write("# Total %s samples into %s pools (and %s mirror pools)\n"%(len(sample_positions), len(pool_positions), 
-                                                        len(pool_positions) if options.add_mirror_pooling_files else 0))
+                                                        len(mirror_pool_positions)))
     min_transfers, max_transfers = min(sample_transfers), max(sample_transfers)
     OUTFILE.write("Total transfers from samples: %s-%s per sample (%s-%s ul)\n"%(min_transfers, max_transfers, 
                                                         min_transfers*transfer_volume, max_transfers*transfer_volume))
