@@ -398,9 +398,10 @@ def do_test_run():
 
     ### 1) TESTS WITH ACTUAL OUTPUT REFERENCE FILES - THE OUTPUT IS CHECKED FOR CORRECTNESS
     print("\n*** CHECKED TEST RUNS - THE OUTPUT IS CHECKED AGAINST CORRECT REFERENCE FILES. ***")
+    # test setup - giving the name/description/arguments for each test
     test_folder = "test_data"
     outfile_base_name = "test_tmp"
-    tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, using [3,2,1] code", 
+    tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, [3,2,1] code", 
               "-n7 -N3  -p1 -s96 -P1 -S6   -o          -i Source -c error-correcting_codes/3-3-1_list -q"), 
              ("test_multi-source", "Multiple source plates (two 6-well), single Biomek file", 
               "-n7 -N3  -p2 -s6  -P1 -S6   -o          -i Source -c error-correcting_codes/3-3-1_list -q"),
@@ -414,19 +415,15 @@ def do_test_run():
               "-n7 -N4  -p2 -s6  -P1 -S6   -o          -i Source -c error-correcting_codes/4-3-2_list -q"),
              ("test_432-all-outfiles", "Same as test_other-code-432 but with multiple/split/mirror outfiles", 
               "-n7 -N4  -p2 -s6  -P1 -S6   -m -x4 -M   -i Source -c error-correcting_codes/4-3-2_list -q")]
-    # MAYBE-TODO really I could just add an automatic mirror test to each test case instead of making mirror stuff separate test cases, since the output files from a non-mirror run are still all identical in a mirror run, there's just one or more extra Biomek_mirror output files.  But do I WANT to make mirror reference files for every single test case? Probably not.
 
+    # running each test
     for test_name, test_descr, test_run in tests:
         print(" * New checked-test run: %s (%s).\n   Arguments: %s"%(test_descr,test_name,test_run))
+        # actually do run_main_function with the given inputs
         (options, args) = parser.parse_args(test_run.split() + [os.path.join(test_folder,outfile_base_name)])
         run_main_function(parser,options,args)
+        # find output reference files in test_folder to compare the output files against
         test_reference_files = [f for f in os.listdir(test_folder) if f.startswith(test_name)]
-        if test_reference_files:    
-            print("    (reference files: %s)"%test_reference_files)
-        else:
-            print("TEST INCOMPLETE!!  No reference files found.")
-            return 1
-            # MAYBE-TODO alternatively I could just print a message and NOT fail, and use this method for smoke-tests...
         # for each reference output files found, compare the tmp output file, 
         #  and fail the test if the output file doesn't exist or differs from the reference file.
         for reffile in test_reference_files:
@@ -444,6 +441,15 @@ def do_test_run():
                 print("TEST FAILED!!  Reference file %s and output file %s differ. MORE INFO ON "%(reffile,outfile)
                       +"DIFFERENCE (the two mismatched lines or an error message): '%s', '%s'"%file_comparison_result)
                 return 1
+        # make sure there aren't any extra output files without reference files
+        test_output_files = [f for f in os.listdir(test_folder) if f.startswith(outfile_base_name)]
+        for outfile in test_output_files:
+            outfile = os.path.join(test_folder,outfile)
+            reffile = outfile.replace(outfile_base_name, test_name)
+            if not os.path.exists(reffile):
+                print("TEST FAILED!!  Output file %s has no matching reference file (%s)."%(outfile,reffile))
+                return 1
+                # MAYBE-TODO or I could just print a message and NOT fail, and use this method for smoke-tests...
 
     print("*** Checked test runs finished - EVERYTHING IS FINE. ***")
     # MAYBE-TODO right now I'm using regular expressions and compare_files_with_regex to avoid having the tests fail due to different date or some such. The right way to do this is probably with Mock library - read up on that and change to it that method some point? (See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle)
@@ -452,20 +458,19 @@ def do_test_run():
     # TODO may want to remove those after I have enough real tests above... Or at least make them optional.
     print("\n*** SMOKE TEST RUNS - THE OUTPUT IS NOT CHECKED, WE'RE JUST MAKING SURE THERE ARE NO ERRORS. ***")
 
-    if os.access("./test_outputs",os.F_OK):
-        print("Test output files will be saved in the test_outputs directory (already present - removing it now).")
-        shutil.rmtree("./test_outputs")
+    if os.access("./smoke-test_outputs",os.F_OK):
+        print("Test output files will be saved in the smoke-test_outputs directory (already present - removing it now).")
+        shutil.rmtree("./smoke-test_outputs")
     else:
-        print("Test output files will be saved in the test_outputs directory (not present - creating it now).")
-    os.mkdir("./test_outputs")
-    # MAYBE-TODO Allow the test_outputs folder name to be given as an argument/option?  How?
+        print("Test output files will be saved in the smoke-test_outputs directory (not present - creating it now).")
+    os.mkdir("./smoke-test_outputs")
 
-    test_runs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator test_outputs/test1 -q", 
-                 "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator test_outputs/test2 -q", 
-                "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator test_outputs/test3 -q"]
+    test_runs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator smoke-test_outputs/test1 -q", 
+              "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator smoke-test_outputs/test2 -q", 
+             "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator smoke-test_outputs/test3 -q"]
     # MAYBE-TODO add name/description strings to the test cases?
     for test_run in test_runs:
-        print(" * New smoke-test run, with arguments: %s"%test_run)
+        print(" * New smoke-test run, with arguments:\n   %s"%test_run)
         # regenerate options with test argument string
         (options, args) = parser.parse_args(test_run.split())
         run_main_function(parser,options,args)
