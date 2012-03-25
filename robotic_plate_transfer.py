@@ -33,31 +33,40 @@ class PlateTransferError(Exception):
 
 
 class Plate_type:
-    """ A plate type (384-well, 96-well, 24-well or 6-well)."""
+    """ A plate type (384-, 96-, 24-, 6-well, or custom). Converts between sequential numbers and well positions."""
 
-    plate_types_rows_columns = {6: (2,3), 24: (4,6), 96: (8,12), 384: (16,24)}
-    plate_sizes = sorted(plate_types_rows_columns.keys())
+    standard_plate_shapes = {6: (2,3), 24: (4,6), 96: (8,12), 384: (16,24)}
 
-    def __init__(self,size):
-        """ Go from the size to row and column numbers, call make_well_ID_list_and_dict."""
-        self.size = size
-        try:                
-            self.rows, self.columns = self.__class__.plate_types_rows_columns[size]
-        except KeyError:    
-            raise PlateTransferError("Plate size must be in integer in %s!"%self.__class__.plate_sizes)
-        assert self.rows*self.columns == self.size
-        self.make_well_ID_list_and_dict()
-        # TODO add an option of explicily specifying the well list (or dict) instead of just size!
-        # TODO use that to add a 6-well plate that's masquarading as a 96-well plate.
-    
-    def make_well_ID_list_and_dict(self):
-        """ Generate a well ID list so list[number]==ID, and a well ID dict so dict[ID]==number.
-        The list is of the form ['A1','A2', ...] and the dictionary {'A1':1, 'A2':2, ...}."""
-        self.well_ID_list = []
-        for row in range(self.rows):
-            self.well_ID_list.extend(['%s%d'%(ascii_uppercase[row],col+1) for col in range(self.columns)])
-        assert len(self.well_ID_list) == self.size
+    def __init__(self, size=None, well_ID_list=None):
+        """ Either use well_ID_list as the number:ID mapping, or assume a standard plate based on size (string)."""
+        # if well_ID_list is passed directly, just use it (and check that the size matches, if not None)
+        if well_ID_list is not None:
+            self.well_ID_list = well_ID_list
+            self.size = len(well_ID_list)
+            if (size is not None) and int(size)!=self.size:
+                raise PlateTransferError("If both size and well_ID_list are passed when creating new Plate_type, "
+                                         +"size must match list length! (currently %s and %s)"%(size, well_ID_list))
+        # if well_ID_list wasn't passed, infer the plate from the size (it must be one of the standard sizes)
+        else:
+            self.size = int(size)
+            self.make_well_ID_list_from_size()
+        # generate well ID dict (based on the well ID list), such that dict[ID]=number, like {'A1':1, 'A2':2, ...}
         self.well_ID_dict = invert_list_to_dict(self.well_ID_list)
+    
+    def make_well_ID_list_from_size(self):
+        """ Generate a well ID list (such that list[number]==ID), based on self.rows/columns, like ['A1','A2', ...]."""
+        # figure out rows/columns based on standard plate shapes
+        try:                
+           rows, columns = self.__class__.standard_plate_shapes[self.size]
+        except KeyError:    
+            raise PlateTransferError("Plate size must be standard (one of %s)"%self.__class__.standard_plate_shapes.keys()
+                                     +"when well_ID_list isn't given!  Size %s given is unacceptable."%self.size)
+        assert rows*columns == self.size, "Malformed plate %s in standard_plate_shapes!"
+        # make the well_ID_list based on rows/columns
+        self.well_ID_list = []
+        for row in range(rows):
+            self.well_ID_list.extend(['%s%d'%(ascii_uppercase[row],col+1) for col in range(columns)])
+        assert len(self.well_ID_list) == self.size, "Auto-generated plate size is wrong!"
 
     def get_well_ID_from_number(self,number):
         """ Given a 0-based well number (4), return the ID (B2 for 6-well plate, A5 for 96-well plate)."""
@@ -69,8 +78,13 @@ class Plate_type:
         try:                return self.well_ID_dict[ID]
         except IndexError:  raise PlateTransferError("Can't get well %s from a %s-well plate!"%(ID,self.size))
 
-# initialize the defined plate types
-plate_types = dict([(n,Plate_type(n)) for n in Plate_type.plate_sizes])
+# initialize the standard plate types (allow both string and int keys)
+plate_type_definitions = dict([(n,Plate_type(n)) for n in Plate_type.standard_plate_shapes.keys()])
+tmp_str_plate_types = dict([(str(n),plate_def) for n,plate_def in plate_type_definitions.items()])
+plate_type_definitions.update(tmp_str_plate_types)
+# additional 'fake 6-well' plate size - pretending it's a 96-well but really just using 6 of its wells and putting a physical 6-well plate in there instead, since for some reason the Biomek has trouble accepting a formal 6-well plate.
+plate_type_definitions['fake6'] = Plate_type(size=6, well_ID_list=['B2','B7','B11','G2','G7','G11'])
+defined_plate_types = sorted( sorted( set([str(x) for x in plate_type_definitions.keys()])), key = lambda x: len(x) )
 
 
 ### Unit-tests for the classes/setup above and "general functions" below
@@ -78,82 +92,127 @@ plate_types = dict([(n,Plate_type(n)) for n in Plate_type.plate_sizes])
 
 class Testing__Plate_type(unittest.TestCase):
     """ Unit-tests for the Plate_type class and methods. """
-    # (all the plate types have been generated already on module import, so just test them)
+
+    ### testing the plate types that have already been generated on module import
 
     def test__get_well_ID_from_number__known_wells(self):
         # try the first, second, first-in-second-row, and last well of each plate size
-        assert plate_types[6].get_well_ID_from_number(0) == 'A1'
-        assert plate_types[6].get_well_ID_from_number(1) == 'A2'
-        assert plate_types[6].get_well_ID_from_number(3) == 'B1'
-        assert plate_types[6].get_well_ID_from_number(5) == 'B3'
-        assert plate_types[24].get_well_ID_from_number(0) == 'A1'
-        assert plate_types[24].get_well_ID_from_number(1) == 'A2'
-        assert plate_types[24].get_well_ID_from_number(6) == 'B1'
-        assert plate_types[24].get_well_ID_from_number(23) == 'D6'
-        assert plate_types[96].get_well_ID_from_number(0) == 'A1'
-        assert plate_types[96].get_well_ID_from_number(1) == 'A2'
-        assert plate_types[96].get_well_ID_from_number(12) == 'B1'
-        assert plate_types[96].get_well_ID_from_number(95) == 'H12'
-        assert plate_types[384].get_well_ID_from_number(0) == 'A1'
-        assert plate_types[384].get_well_ID_from_number(1) == 'A2'
-        assert plate_types[384].get_well_ID_from_number(24) == 'B1'
-        assert plate_types[384].get_well_ID_from_number(383) == 'P24'
+        assert plate_type_definitions['6'].get_well_ID_from_number(0) == 'A1'
+        assert plate_type_definitions['6'].get_well_ID_from_number(1) == 'A2'
+        assert plate_type_definitions['6'].get_well_ID_from_number(3) == 'B1'
+        assert plate_type_definitions['6'].get_well_ID_from_number(5) == 'B3'
+        assert plate_type_definitions['24'].get_well_ID_from_number(0) == 'A1'
+        assert plate_type_definitions['24'].get_well_ID_from_number(1) == 'A2'
+        assert plate_type_definitions['24'].get_well_ID_from_number(6) == 'B1'
+        assert plate_type_definitions['24'].get_well_ID_from_number(23) == 'D6'
+        assert plate_type_definitions[96].get_well_ID_from_number(0) == 'A1'
+        assert plate_type_definitions[96].get_well_ID_from_number(1) == 'A2'
+        assert plate_type_definitions[96].get_well_ID_from_number(12) == 'B1'
+        assert plate_type_definitions[96].get_well_ID_from_number(95) == 'H12'
+        assert plate_type_definitions[384].get_well_ID_from_number(0) == 'A1'
+        assert plate_type_definitions[384].get_well_ID_from_number(1) == 'A2'
+        assert plate_type_definitions[384].get_well_ID_from_number(24) == 'B1'
+        assert plate_type_definitions[384].get_well_ID_from_number(383) == 'P24'
+        assert plate_type_definitions['fake6'].get_well_ID_from_number(0) == 'B2'
+        assert plate_type_definitions['fake6'].get_well_ID_from_number(1) == 'B7'
+        assert plate_type_definitions['fake6'].get_well_ID_from_number(3) == 'G2'
+        assert plate_type_definitions['fake6'].get_well_ID_from_number(5) == 'G11'
 
     def test__get_well_ID_from_number__last_wells(self):
         # you can also use a negative list index to get wells from the end, why not
-        assert plate_types[6].get_well_ID_from_number(-1) == 'B3'
-        assert plate_types[24].get_well_ID_from_number(-1) == 'D6'
-        assert plate_types[96].get_well_ID_from_number(-1) == 'H12'
-        assert plate_types[384].get_well_ID_from_number(-1) == 'P24'
+        assert plate_type_definitions[6].get_well_ID_from_number(-1) == 'B3'
+        assert plate_type_definitions[24].get_well_ID_from_number(-1) == 'D6'
+        assert plate_type_definitions['96'].get_well_ID_from_number(-1) == 'H12'
+        assert plate_type_definitions['384'].get_well_ID_from_number(-1) == 'P24'
+        assert plate_type_definitions['fake6'].get_well_ID_from_number(-1) == 'G11'
 
     def test__get_well_ID_from_number__bad_numbers(self):
         # basic tests with obviously wrong values
-        self.assertRaises(PlateTransferError, plate_types[6].get_well_ID_from_number, 100)
-        self.assertRaises(TypeError, plate_types[6].get_well_ID_from_number, 0.5)
-        self.assertRaises(TypeError, plate_types[6].get_well_ID_from_number, 'A')
-        self.assertRaises(TypeError, plate_types[6].get_well_ID_from_number, [1])
+        self.assertRaises(PlateTransferError, plate_type_definitions['6'].get_well_ID_from_number, 100)
+        self.assertRaises(TypeError, plate_type_definitions['6'].get_well_ID_from_number, 0.5)
+        self.assertRaises(TypeError, plate_type_definitions['6'].get_well_ID_from_number, 'A')
+        self.assertRaises(TypeError, plate_type_definitions['6'].get_well_ID_from_number, [1])
         # well numbers are 0-based, so there should be no well N in an N-well plate (the wells are 0..N-1)
-        for plate_size in Plate_type.plate_sizes:
-            self.assertRaises(PlateTransferError, plate_types[plate_size].get_well_ID_from_number, plate_size)
+        for plate_size in Plate_type.standard_plate_shapes.keys():
+            self.assertRaises(PlateTransferError, plate_type_definitions[str(plate_size)].get_well_ID_from_number, plate_size)
 
     def test__get_well_number_from_ID__known_wells(self):
         # try the first, second, first-in-second-row, and last well of each plate size
-        assert plate_types[6].get_well_number_from_ID('A1') == 0
-        assert plate_types[6].get_well_number_from_ID('A2') == 1
-        assert plate_types[6].get_well_number_from_ID('B1') == 3
-        assert plate_types[6].get_well_number_from_ID('B3') == 5
-        assert plate_types[24].get_well_number_from_ID('A1') == 0
-        assert plate_types[24].get_well_number_from_ID('A2') == 1
-        assert plate_types[24].get_well_number_from_ID('B1') == 6
-        assert plate_types[24].get_well_number_from_ID('D6') == 23
-        assert plate_types[96].get_well_number_from_ID('A1') == 0
-        assert plate_types[96].get_well_number_from_ID('A2') == 1
-        assert plate_types[96].get_well_number_from_ID('B1') == 12
-        assert plate_types[96].get_well_number_from_ID('H12') == 95
-        assert plate_types[384].get_well_number_from_ID('A1') == 0
-        assert plate_types[384].get_well_number_from_ID('A2') == 1
-        assert plate_types[384].get_well_number_from_ID('B1') == 24
-        assert plate_types[384].get_well_number_from_ID('P24') == 383
+        assert plate_type_definitions['6'].get_well_number_from_ID('A1') == 0
+        assert plate_type_definitions['6'].get_well_number_from_ID('A2') == 1
+        assert plate_type_definitions['6'].get_well_number_from_ID('B1') == 3
+        assert plate_type_definitions['6'].get_well_number_from_ID('B3') == 5
+        assert plate_type_definitions[24].get_well_number_from_ID('A1') == 0
+        assert plate_type_definitions[24].get_well_number_from_ID('A2') == 1
+        assert plate_type_definitions[24].get_well_number_from_ID('B1') == 6
+        assert plate_type_definitions[24].get_well_number_from_ID('D6') == 23
+        assert plate_type_definitions[96].get_well_number_from_ID('A1') == 0
+        assert plate_type_definitions[96].get_well_number_from_ID('A2') == 1
+        assert plate_type_definitions[96].get_well_number_from_ID('B1') == 12
+        assert plate_type_definitions[96].get_well_number_from_ID('H12') == 95
+        assert plate_type_definitions['384'].get_well_number_from_ID('A1') == 0
+        assert plate_type_definitions['384'].get_well_number_from_ID('A2') == 1
+        assert plate_type_definitions['384'].get_well_number_from_ID('B1') == 24
+        assert plate_type_definitions['384'].get_well_number_from_ID('P24') == 383
+        assert plate_type_definitions['fake6'].get_well_number_from_ID('B2') == 0
+        assert plate_type_definitions['fake6'].get_well_number_from_ID('B7') == 1
+        assert plate_type_definitions['fake6'].get_well_number_from_ID('G2') == 3
+        assert plate_type_definitions['fake6'].get_well_number_from_ID('G11') == 5
         
     def test__get_well_number__fromID__bad_numbers(self):
         """ For each size, test a row and column that shouldn't exist). """
         # MAYBE-TODO make.get_well_number_from_ID check for this explicitly, raise PlateTransferError instead of KeyError?
-        self.assertRaises(KeyError, plate_types[6].get_well_number_from_ID, 'A4')
-        self.assertRaises(KeyError, plate_types[6].get_well_number_from_ID, 'C1')
-        self.assertRaises(KeyError, plate_types[24].get_well_number_from_ID, 'A7')
-        self.assertRaises(KeyError, plate_types[24].get_well_number_from_ID, 'E1')
-        self.assertRaises(KeyError, plate_types[96].get_well_number_from_ID, 'A13')
-        self.assertRaises(KeyError, plate_types[96].get_well_number_from_ID, 'I1')
-        self.assertRaises(KeyError, plate_types[384].get_well_number_from_ID, 'A25')
-        self.assertRaises(KeyError, plate_types[384].get_well_number_from_ID, 'Q1')
+        self.assertRaises(KeyError, plate_type_definitions['6'].get_well_number_from_ID, 'A4')
+        self.assertRaises(KeyError, plate_type_definitions['6'].get_well_number_from_ID, 'C1')
+        self.assertRaises(KeyError, plate_type_definitions['24'].get_well_number_from_ID, 'A7')
+        self.assertRaises(KeyError, plate_type_definitions['24'].get_well_number_from_ID, 'E1')
+        self.assertRaises(KeyError, plate_type_definitions[96].get_well_number_from_ID, 'A13')
+        self.assertRaises(KeyError, plate_type_definitions[96].get_well_number_from_ID, 'I1')
+        self.assertRaises(KeyError, plate_type_definitions[384].get_well_number_from_ID, 'A25')
+        self.assertRaises(KeyError, plate_type_definitions[384].get_well_number_from_ID, 'Q1')
+        self.assertRaises(KeyError, plate_type_definitions['fake6'].get_well_number_from_ID, 'B1')
+        self.assertRaises(KeyError, plate_type_definitions['fake6'].get_well_number_from_ID, 'B4')
+        self.assertRaises(KeyError, plate_type_definitions['fake6'].get_well_number_from_ID, 'B12')
+        self.assertRaises(KeyError, plate_type_definitions['fake6'].get_well_number_from_ID, 'A2')
+        self.assertRaises(KeyError, plate_type_definitions['fake6'].get_well_number_from_ID, 'D2')
+        self.assertRaises(KeyError, plate_type_definitions['fake6'].get_well_number_from_ID, 'H2')
 
-    def test__creating_bad_plate_types(self):
+    ### Testing creating new plate types (legal and not)
+
+    def test__creating_bad_plate_types_from_size(self):
         # Shouldn't ever be able to create a 0-well plate
         self.assertRaises(PlateTransferError,Plate_type,0)
+        self.assertRaises(PlateTransferError,Plate_type,'0')
         # Shouldn't be able to create a 10-well plate, it wasn't defined
         self.assertRaises(PlateTransferError,Plate_type,10)
-        # Shouldn't be able to create a T-well plate, that makes no sense
-        self.assertRaises(PlateTransferError,Plate_type,'T')
+        self.assertRaises(PlateTransferError,Plate_type,'10')
+        # Non-integer values won't work
+        self.assertRaises(ValueError,Plate_type,'T')
+        self.assertRaises(TypeError,Plate_type,None)
+
+    def test__creating_good_plate_types_from_list(self):
+        new_plate_type = Plate_type(well_ID_list=['a','b','c'])
+        assert new_plate_type.size == 3
+        assert new_plate_type.get_well_ID_from_number(0) == 'a'
+        assert new_plate_type.get_well_ID_from_number(2) == 'c'
+        assert new_plate_type.get_well_number_from_ID('a') == 0
+        assert new_plate_type.get_well_number_from_ID('c') == 2
+        new_plate_type = Plate_type(well_ID_list=['A29','D1'])
+        assert new_plate_type.size == 2
+        assert new_plate_type.get_well_ID_from_number(0) == 'A29'
+        assert new_plate_type.get_well_ID_from_number(1) == 'D1'
+        assert new_plate_type.get_well_number_from_ID('A29') == 0
+        assert new_plate_type.get_well_number_from_ID('D1') == 1
+
+    def test__creating_bad_plate_types_from_list(self):
+        # if size is given, it must match the lenght of well_ID_list
+        self.assertRaises(PlateTransferError,Plate_type, size=1, well_ID_list=['a','b'])
+        self.assertRaises(PlateTransferError,Plate_type, size=5, well_ID_list=['a','b'])
+        # well_ID_list must be a list and must not contain duplicates
+        for bad_list in [True, 4, 1232]:
+            self.assertRaises(TypeError,Plate_type, well_ID_list=bad_list)
+        for bad_list in [['a','a'], [0,0]]:
+            self.assertRaises(ValueError,Plate_type, well_ID_list=bad_list)
 
 
 class Testing__generate_outfile_names(unittest.TestCase):
@@ -226,8 +285,10 @@ class Testing__numbers_to_plate_and_well_IDs(unittest.TestCase):
 
     def test__correct_cases(self):
         assert numbers_to_plate_and_well_IDs(10, 6, 2, ['plate1','plate2']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate2,A1', 'plate2,A2', 'plate2,A3', 'plate2,B1']
+        assert numbers_to_plate_and_well_IDs(10, '6', 2, ['plate1','plate2']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate2,A1', 'plate2,A2', 'plate2,A3', 'plate2,B1']
         assert numbers_to_plate_and_well_IDs(10, 24, 1, ['plate1']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 'plate1,A6', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate1,B4']
         assert numbers_to_plate_and_well_IDs(10, 96, 1, ['plate1']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 'plate1,A6', 'plate1,A7', 'plate1,A8', 'plate1,A9', 'plate1,A10']
+        assert numbers_to_plate_and_well_IDs(10, 'fake6', 2, ['plate1','plate2']) == ['plate1,B2', 'plate1,B7', 'plate1,B11', 'plate1,G2', 'plate1,G7', 'plate1,G11', 'plate2,B2', 'plate2,B7', 'plate2,B11', 'plate2,G2']
 
     def test__bad_input(self):
         # Shouldn't work, N_plates doesn't match the plate ID list
@@ -389,6 +450,7 @@ class Testing__split_command_list_to_max_commands(unittest.TestCase):
         assert split_command_list_to_max_commands(['a','b','c','d'], 3) == [['a','b'],['c','d']]
         assert split_command_list_to_max_commands(['a','b','c','d'], 4) == [['a','b','c','d']]
 
+
 def do_test_run():
     """ Test run: run script on test infile, compare output to reference file."""
     parser = define_option_parser()
@@ -414,7 +476,9 @@ def do_test_run():
              ("test_other-code-432", "Using a [4,3,2] code; multiple source plates, single outfile, basic", 
               "-n7 -N4  -p2 -s6  -P1 -S6   -o          -i Source -c error-correcting_codes/4-3-2_list -q"),
              ("test_432-all-outfiles", "Same as test_other-code-432 but with multiple/split/mirror outfiles", 
-              "-n7 -N4  -p2 -s6  -P1 -S6   -m -x4 -M   -i Source -c error-correcting_codes/4-3-2_list -q")]
+              "-n7 -N4  -p2 -s6  -P1 -S6   -m -x4 -M   -i Source -c error-correcting_codes/4-3-2_list -q"),
+             ("test_fake6-plate", "Same as test_basic but using fake6 destination plate", 
+              "-n7 -N3  -p1 -s96 -P1 -Sfake6   -o      -i Source -c error-correcting_codes/3-3-1_list -q")] 
 
     # running each test
     for test_name, test_descr, test_run in tests:
@@ -455,7 +519,7 @@ def do_test_run():
     # MAYBE-TODO right now I'm using regular expressions and compare_files_with_regex to avoid having the tests fail due to different date or some such. The right way to do this is probably with Mock library - read up on that and change to it that method some point? (See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle)
 
     ### 2) "SMOKE TESTS" WITH NO OUTPUT REFERENCE FILES - just make sure they work and don't give errors
-    # TODO may want to remove those after I have enough real tests above... Or at least make them optional.
+    # MAYBE-TODO may want to remove those after I have enough real tests above... Or at least make them optional.
     print("\n*** SMOKE TEST RUNS - THE OUTPUT IS NOT CHECKED, WE'RE JUST MAKING SURE THERE ARE NO ERRORS. ***")
 
     if os.access("./smoke-test_outputs",os.F_OK):
@@ -534,21 +598,23 @@ def get_plate_name_list_from_input(N_plates,ID_input):
         raise PlateTransferError("Can't figure out how to name %s plates using input \"%s\"!"%(N_plates,ID_input))
 
 
-def numbers_to_plate_and_well_IDs(N_samples, plate_size, N_plates, plate_IDs):
+def numbers_to_plate_and_well_IDs(N_samples, plate_type_name, N_plates, plate_IDs):
     """ Given the number of samples and plate information, return a list of with plate/well positions for each sample.
     The list will be of length N_samples, about like this: ['plate1,A1','plate1,A2',...,'plate1,H12','plate2,A1',...]. """
 
     if not len(plate_IDs)==N_plates:
         raise PlateTransferError("The number of plates must match the number of plate IDs provided!")
-    if not plate_size in Plate_type.plate_sizes:
-        raise PlateTransferError("Plate size must be an integer in %s!"%Plate_type.plate_sizes)
-    if N_samples > plate_size*N_plates:
-        raise PlateTransferError("Can't fit %s samples in %s %s-well plates!"%(N_samples,N_plates,plate_size))
-    if N_samples <= plate_size*(N_plates-1):
-        raise PlateTransferError("Why use %s %s-well plates "%(N_plates,plate_size)
-                                     + "when you can fit %s samples in %s plates?"%(N_samples,N_plates-1))
+    if not plate_type_name in plate_type_definitions:
+        raise PlateTransferError("Plate type must be in %s!"%defined_plate_types)
 
-    plate_type = plate_types[plate_size]
+    plate_type = plate_type_definitions[plate_type_name]
+    plate_size = plate_type.size
+    if N_samples > plate_size*N_plates:
+        raise PlateTransferError("Can't fit %s samples in %s %s-well plates!"%(N_samples,N_plates,plate_type_name))
+    if N_samples <= plate_size*(N_plates-1):
+        raise PlateTransferError("Why use %s %s-well plates "%(N_plates,plate_type_name)
+                                 + "when you can fit %s samples in %s plates?"%(N_samples,N_plates-1))
+
     position_list = []
     for i in range(N_samples):
         well_number = i % plate_size
@@ -827,10 +893,10 @@ def define_option_parser():
     parser.add_option('-u','--mirror_pool_plate_suffix', default='_mirror', metavar='S', 
                       help="Append S to the pool plate names for the mirror pooling Biomek files (default %default).")
 
-    parser.add_option('-s','--size_of_sample_plates', type='int', default=96, metavar='M', 
-                      help="Sample (source) plate size (from %s)"%Plate_type.plate_sizes + " (default %default)")
-    parser.add_option('-S','--size_of_pool_plates', type='int', default=6, metavar='M', 
-                      help="Pool (destination) plate size (from %s)"%Plate_type.plate_sizes + " (default %default)")
+    parser.add_option('-s','--size_of_sample_plates', type='choice', choices=defined_plate_types, default=96, metavar='M', 
+                      help="Sample (source) plate size (allowed values: %s)"%defined_plate_types +" (default %default)")
+    parser.add_option('-S','--size_of_pool_plates', type='choice', choices=defined_plate_types, default=6, metavar='M', 
+                      help="Pool (destination) plate size (allowed values: %s)"%defined_plate_types +" (default %default)")
     parser.add_option('-p','--number_of_sample_plates', type='int', default=1, metavar='N', 
                       help="Total number of sample (source) plates to use (default %default).")
     parser.add_option('-P','--number_of_pool_plates', type='int', default=4, metavar='N', 
@@ -878,8 +944,9 @@ def check_options_and_args(parser,options,args):
                  + "The general output file will be X.txt, the Biomek output file will be X_Biomek.csv "
                  + "(or X_Biomek_Source1.csv, X_Biomek_Source2.csv, etc, with the -m option).")
 
-    if not all([ (s in Plate_type.plate_sizes) for s in [options.size_of_sample_plates, options.size_of_pool_plates] ]):
-        sys.exit("Plate sizes (-s and -S) must be in integer in %s! No other sizes are defined."%Plate_type.plate_sizes)
+    for curr_plate_size in [options.size_of_sample_plates, options.size_of_pool_plates]:
+        if not curr_plate_size in plate_type_definitions:
+            sys.exit("Plate sizes (-s and -S) must be one of the defined sizes (%s)!"%(', '.join(defined_plate_types)))
     if not (options.number_of_samples>0 and options.number_of_pools>0):
         sys.exit("Positive -n and -N values required!")
     if not bool(options.binary_code_list_file) ^ bool(options.binary_code_generator_file):  # is xor
@@ -960,7 +1027,7 @@ if __name__=='__main__':
     if options.test_functionality:
         print("*** You used the -t option - ignoring all other options/arguments (including -T), "
               + "running the built-in simple test suite.")
-        print("Defined plate sizes: %s"%Plate_type.plate_sizes)
+        print("Defined plate sizes: %s"%defined_plate_types)
         # tun unittest.main, passing it no arguments (by default it takes sys.argv and complains about the -t)
         unittest.main(argv=[sys.argv[0]])
         # MAYBE-TODO unittest.main automatically quits - there's no way of doing -t and -T at once.  Do I care?
