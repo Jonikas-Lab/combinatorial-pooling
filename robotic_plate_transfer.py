@@ -437,11 +437,12 @@ def do_test_run():
                 return 1
             with open(reffile,'r') as REFFILE:
                 with open(outfile,'r') as OUTFILE:
-                    result = compare_files_with_regex(OUTFILE, REFFILE)
-            if result:
+                    file_comparison_result = compare_files_with_regex(OUTFILE, REFFILE)
+            if file_comparison_result==True:
                 os.remove(outfile)
             else:
-                print("TEST FAILED!!  Reference file %s and output file %s differ - PLEASE COMPARE."%(reffile,outfile))
+                print("TEST FAILED!!  Reference file %s and output file %s differ. MORE INFO ON "%(reffile,outfile)
+                      +"DIFFERENCE (the two mismatched lines or an error message): '%s', '%s'"%file_comparison_result)
                 return 1
 
     print("*** Checked test runs finished - EVERYTHING IS FINE. ***")
@@ -607,10 +608,6 @@ def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions
             Biomek_file_commands.append("%s,%s,%s"%(sample_position,pool_positions[pool_number],volume))
     # MAYBE-TODO might be nice to have info printed about the highest number of pools per sample and samples per pool, to help with volume calculations... And also the total number of transfers (maybe divided by 96) to figure out how many tip boxes will be needed
     return Biomek_file_commands
-# TODO make this calculate and output two pieces of information: 
-# - how many samples will be taken from each source position!
-# - how many samples will end up in each destination position!
-# Make the formatting useful-looking - possibly just give the range first.
 
 
 def split_command_list_by_source(Biomek_file_commands):
@@ -751,21 +748,42 @@ def write_data_to_outfile(sample_codewords, sample_positions, pool_positions,
                           main_outfile, outfiles_Biomek, options=None):
     """ Write data to main_outfile: header information (command, path, date/time, options - all as #-start comments), 
     sample numbers/positions/codewords, and pool numbers/positions. """
-    # print all the usual header information (command, path, date/time, options)
+    ### print all the usual header information (command, path, date/time, options)
     OUTFILE = open(main_outfile,'w')
     write_header_data(OUTFILE,options)
+    ### write the detailed sample/pool number/position/codeword/volume data
+    volume = options.volume_per_transfer
+    # sample data
+    sample_transfers = []
+    OUTFILE.write("\nsample_number\tplate_and_well_position\tcodeword\ttransfers\tvolume (ul)\n")
+    for (number,(codeword,position)) in enumerate(zip(sample_codewords,sample_positions)):
+        total_transfers = codeword.weight()
+        total_volume = total_transfers * volume
+        OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, codeword.string(), total_transfers, total_volume))
+        sample_transfers.append(total_transfers)
+    # pool data
+    pool_transfers = []
+    OUTFILE.write("\npool_number\tplate_and_well_position\tpooling_scheme\ttransfers\tvolume (ul)\n")
+    for (number,position) in enumerate(pool_positions):
+        pooling_scheme = ''.join([codeword.string()[number] for codeword in sample_codewords])
+        total_transfers = pooling_scheme.count('1')
+        total_volume = total_transfers * volume
+        OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, pooling_scheme, total_transfers, total_volume))
+        pool_transfers.append(total_transfers)
+    # TODO add data for mirror destinations as well as normal ones, if used!
+    ### print footer info: corresponding Biomek outfile list, min/max transfers/volume per sample/pool
     # make nice outfile list for printing: strip outermost [] pair (with [1:-1]), get rid of quotes, 
     #  and remove the folder name, since they're in the same folder as the main_outfile
     nice_outfile_list = str(outfiles_Biomek)[1:-1].replace("'",'').replace(os.path.dirname(main_outfile)+os.path.sep,'')
-    OUTFILE.write("# Corresponding Biomek file(s): %s\n"%nice_outfile_list)
-    # write the sample_number_position_codeword_list and pool_number_position_list data
-    OUTFILE.write("\nsample_number,\tplate_and_well_position,\tcodeword\n")
-    for (number,(codeword,position)) in enumerate(zip(sample_codewords,sample_positions)):
-        OUTFILE.write("%s,\t%s,\t%s\n"%(number,position,codeword.string()))
-    OUTFILE.write("\npool_number,\tplate_and_well_position\n")
-    for (number,position) in enumerate(pool_positions):
-        OUTFILE.write("%s,\t%s\n"%(number,position))
-    # MAYBE-TODO print the mirror destination plate positions as well?
+    OUTFILE.write("\n# Corresponding Biomek file(s): %s\n"%nice_outfile_list)
+    OUTFILE.write("# Total %s samples into %s pools (and %s mirror pools)\n"%(len(sample_positions), len(pool_positions), 
+                                                        len(pool_positions) if options.add_mirror_pooling_files else 0))
+    min_transfers, max_transfers = min(sample_transfers), max(sample_transfers)
+    OUTFILE.write("Total transfers from samples: %s-%s per sample (%s-%s ul)\n"%(min_transfers, max_transfers, 
+                                                                        min_transfers*volume, max_transfers*volume))
+    min_transfers, max_transfers = min(pool_transfers), max(pool_transfers)
+    OUTFILE.write("Total transfers into pools: %s-%s per pool (%s-%s ul)\n"%(min_transfers, max_transfers, 
+                                                                        min_transfers*volume, max_transfers*volume))
     OUTFILE.close()
 
 
