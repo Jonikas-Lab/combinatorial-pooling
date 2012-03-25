@@ -23,5 +23,5 @@ pool_number	plate_and_well_position	pooling_scheme	transfers	volume (ul)
 <IGNORE> I'm using symlinks to this outfile for multiple tests with different Biomek outfile setups (mirror or not, multiple or not), so I'm just leaving a general regex here
 <REGEX># Corresponding Biomek command file\(s\): .*
 # Total 7 samples into 3 pools (and 0 mirror pools)
-Total transfers from samples: 1-3 per sample (20-60 ul)
-Total transfers into pools: 4-4 per pool (80-80 ul)
+transfers from samples: 1-3 per sample (20-60 ul), total 12 transfers
+transfers into pools: 4-4 per pool (80-80 ul), total 12 transfers

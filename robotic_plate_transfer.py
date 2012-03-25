@@ -679,7 +679,6 @@ def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions
         pools_to_add_sample_to = [pool_number for (pool_number,if_add) in enumerate(sample_codeword.list()) if if_add==1]
         for pool_number in pools_to_add_sample_to:
             Biomek_file_commands.append("%s,%s,%s"%(sample_position,pool_positions[pool_number],volume))
-    # MAYBE-TODO might be nice to have info printed about the highest number of pools per sample and samples per pool, to help with volume calculations... And also the total number of transfers (maybe divided by 96) to figure out how many tip boxes will be needed
     return Biomek_file_commands
 
 
@@ -832,27 +831,33 @@ def write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool
     write_header_data(OUTFILE,options)
     ### write the detailed sample/pool number/position/codeword/volume data
     # sample data
-    sample_transfers = []
-    OUTFILE.write("\nsample_number\tplate_and_well_position\tcodeword\ttransfers\tvolume (ul)\n")
-    for (number,(codeword,position)) in enumerate(zip(sample_codewords,sample_positions)):
-        total_transfers = codeword.weight()
-        total_volume = total_transfers * transfer_volume
-        OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, codeword.string(), total_transfers, total_volume))
-        sample_transfers.append(total_transfers)
+    sample_transfers = {}
+    OUTFILE.write("\n")
+    for setname, curr_sample_codewords in [('', sample_codewords), ('mirror', mirror_sample_codewords)]:
+        if curr_sample_codewords:     # only print the header if there's any content
+            OUTFILE.write("sample_number\tplate_and_well_position\t%scodeword\ttransfers\tvolume (ul)\n" 
+                          %('' if setname=='' else setname+'_'))
+            sample_transfers[setname] = []
+        for (number,(codeword,position)) in enumerate(zip(curr_sample_codewords,sample_positions)):
+            total_transfers = codeword.weight()
+            total_volume = total_transfers * transfer_volume
+            OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, codeword.string(), total_transfers, total_volume))
+            sample_transfers[setname].append(total_transfers)
     # pool data (first normal, then mirror, with a header for each)
-    pool_transfers = []
+    pool_transfers = {}
     OUTFILE.write("\n")
     for setname, curr_pool_positions, curr_sample_codewords in [('', pool_positions, sample_codewords), 
-                                                            ('mirror_', mirror_pool_positions, mirror_sample_codewords)]:
-        # only print the header if there's any content
-        if curr_pool_positions:
-            OUTFILE.write("%spool_number\tplate_and_well_position\tpooling_scheme\ttransfers\tvolume (ul)\n"%setname)
+                                                            ('mirror', mirror_pool_positions, mirror_sample_codewords)]:
+        if curr_pool_positions:     # only print the header if there's any content
+            OUTFILE.write("%spool_number\tplate_and_well_position\tpooling_scheme\ttransfers\tvolume (ul)\n" 
+                          %('' if setname=='' else setname+'_'))
+            pool_transfers[setname] = []
         for (number,position) in enumerate(curr_pool_positions):
             pooling_scheme = ''.join([codeword.string()[number] for codeword in curr_sample_codewords])
             total_transfers = pooling_scheme.count('1')
             total_volume = total_transfers * transfer_volume
             OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, pooling_scheme, total_transfers, total_volume))
-            pool_transfers.append(total_transfers)
+            pool_transfers[setname].append(total_transfers)
     ### print footer info: corresponding Biomek outfile list, min/max transfers/volume per sample/pool
     # make nice outfile list for printing: strip outermost [] pair (with [1:-1]), get rid of quotes, 
     #  and remove the folder name, since they're in the same folder as the main_outfile
@@ -860,13 +865,20 @@ def write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool
     OUTFILE.write("\n# Corresponding Biomek command file(s): %s\n"%nice_outfile_list)
     OUTFILE.write("# Total %s samples into %s pools (and %s mirror pools)\n"%(len(sample_positions), len(pool_positions), 
                                                         len(mirror_pool_positions)))
-    min_transfers, max_transfers = min(sample_transfers), max(sample_transfers)
-    OUTFILE.write("Total transfers from samples: %s-%s per sample (%s-%s ul)\n"%(min_transfers, max_transfers, 
-                                                        min_transfers*transfer_volume, max_transfers*transfer_volume))
-    min_transfers, max_transfers = min(pool_transfers), max(pool_transfers)
-    OUTFILE.write("Total transfers into pools: %s-%s per pool (%s-%s ul)\n"%(min_transfers, max_transfers, 
-                                                        min_transfers*transfer_volume, max_transfers*transfer_volume))
+    for setname, curr_sample_transfers in sample_transfers.items():
+        min_transfers, max_transfers = min(curr_sample_transfers), max(curr_sample_transfers)
+        OUTFILE.write("%stransfers from samples: "%('' if setname=='' else setname+' '))
+        OUTFILE.write("%s-%s per sample (%s-%s ul), "%(min_transfers, max_transfers, 
+                                                       min_transfers*transfer_volume, max_transfers*transfer_volume))
+        OUTFILE.write("total %s transfers\n"%sum(curr_sample_transfers))
+    for setname, curr_pool_transfers in pool_transfers.items():
+        min_transfers, max_transfers = min(curr_pool_transfers), max(curr_pool_transfers)
+        OUTFILE.write("transfers into %spools: "%('' if setname=='' else setname+' '))
+        OUTFILE.write("%s-%s per pool (%s-%s ul), "%(min_transfers, max_transfers, 
+                                                    min_transfers*transfer_volume, max_transfers*transfer_volume))
+        OUTFILE.write("total %s transfers\n"%sum(curr_pool_transfers))
     OUTFILE.close()
+    # MAYBE-TODO print some info about the minimum Hamming distance?
 
 
 ### Option parser functions - no real need to unit-test, and it'd be complicated and weird.
@@ -925,7 +937,7 @@ def define_option_parser():
                       help="Header line for the Biomek transfer file (won't be printed if set to ''; default %default).")
 
     # MAYBE-TODO add a minimum Hamming distance option, make the program check that all pairs in the final codeword set satisfy that?
-    # MAYBE-TODO get histograms of Hamming distances and bit sums?  (at least as numbers, possibly plots?)
+    # MAYBE-TODO same for bit-sum limit for when I want to specify that
 
     # MAYBE-TODO implement more ways of dealing with the clonality issue?  
     #   1. Simple check - check that the bitwise OR of no two codewords generates a codeword that's in the set

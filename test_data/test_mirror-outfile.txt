@@ -13,6 +13,14 @@ sample_number	plate_and_well_position	codeword	transfers	volume (ul)
 4	Source,A5	101	2	40
 5	Source,A6	110	2	40
 6	Source,A7	111	3	60
+sample_number	plate_and_well_position	mirror_codeword	transfers	volume (ul)
+0	Source,A1	110	2	40
+1	Source,A2	101	2	40
+2	Source,A3	011	2	40
+3	Source,A4	100	1	20
+4	Source,A5	010	1	20
+5	Source,A6	001	1	20
+6	Source,A7	000	0	0
 
 pool_number	plate_and_well_position	pooling_scheme	transfers	volume (ul)
 0	Destination,A1	0010111	4	80
@@ -26,5 +34,7 @@ mirror_pool_number	plate_and_well_position	pooling_scheme	transfers	volume (ul)
 <IGNORE> The Biomek outfile filenames are given as test_.*_ rather than containing the real testname because test-run output files that will be compared to these reference files obviously must have different names.
 <REGEX># Corresponding Biomek command file\(s\): test_.*_Biomek.csv, test_.*_Biomek_mirror.csv
 # Total 7 samples into 3 pools (and 3 mirror pools)
-Total transfers from samples: 1-3 per sample (20-60 ul)
-Total transfers into pools: 3-4 per pool (60-80 ul)
+transfers from samples: 1-3 per sample (20-60 ul), total 12 transfers
+mirror transfers from samples: 0-2 per sample (0-40 ul), total 9 transfers
+transfers into pools: 4-4 per pool (80-80 ul), total 12 transfers
+transfers into mirror pools: 3-3 per pool (60-60 ul), total 9 transfers
