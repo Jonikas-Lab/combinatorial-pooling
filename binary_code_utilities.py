@@ -7,6 +7,7 @@ import sys
 from collections import defaultdict
 import itertools
 from numpy import array, dot
+import random
 import unittest
 import bitstring
 
@@ -319,7 +320,7 @@ class Binary_code:
         # more on Hamming distance comparisons/implementations: http://stackoverflow.com/questions/2420412/search-for-string-allowing-for-one-mismatch-in-any-location-of-the-string
 
     def find_bit_sum_counts(self):
-        """ Return the number of codewords with each possible bit-sum value (weight).
+        """ Return the number of codewords with each possible bit-sum value (weight), as a list of (bit-sum, count) tuples.
         The return value is a sorted list of tuples, for readability, but convertion into a dictionary is trivial."""
         bit_sum_counts = defaultdict(lambda: 0)
         for codeword in self.codewords:
@@ -348,13 +349,49 @@ class Binary_code:
             new_code.add((~codeword).string())
         return new_code
 
-    def choose_by_bit_sum(self,low,high):
-        """ Remove all codewords with bit sums outside the low-high range. If high is -1, don't apply an upper bound. """
+    def choose_codewords_by_bit_sum(self, low, high, replace_self=False):
+        """ Take all codewords with bit sums in low-high range; either return the set, or replace self.codewords with it.
+        If high is -1, don't apply an upper bound. 
+        """
         if high==-1:    high = self.find_bit_sum_counts()[-1][0]
         new_codewords = set()
         for codeword in self.codewords:
             if low <= codeword.weight() <= high:  new_codewords.add(codeword)
-        self.codewords = new_codewords
+        if replace_self:
+            self.codewords = new_codewords
+            return
+        else:
+            return new_codewords
+
+    def give_N_codewords_random(self,N):
+        """ Return a set of N randomly chosen codewords.  Raise an error if N is higher than current code size. """
+        if N>self.size():
+            raise BinaryCodeError("Cannot reduce the code to %s elements, it's already only %s!"%(N,self.size()))
+        # Grab the codewords as a list; Sort normally (i.e. by string) just to make sure the result is reproducible.
+        new_codeword_set = set(random.sample(self.codewords, N))
+        return new_codeword_set
+
+    def give_N_codewords_by_bit_sum(self, N, take_high=False):
+        """ Return set of N codewords with the lowest possible bit-sums (or highest if take_high); random within that.
+        First determines the bit-sum range (starting at lowest and going up, or the opposite if take_high) that contains
+         at least N codewords; then chooses N codewords randomly from all the codewords in that bit-sum range.
+        Raise an error if N is higher than current code size. """
+        if N>self.size():
+            raise BinaryCodeError("Cannot reduce the code to %s elements, it's already only %s!"%(N,self.size()))
+        # get a list of (bit-sum,codeword-count) tuples, sorted low-to-high or high-to-low
+        bit_sum_counts = sorted(self.find_bit_sum_counts(), reverse=take_high)
+        # go over the list in order, keeping the bit-sums as a list, until there are enough codewords
+        bit_sums_to_use, codeword_total = [], 0
+        for bit_sum, codeword_count in bit_sum_counts:
+            bit_sums_to_use.append(bit_sum)
+            codeword_total += codeword_count
+            if codeword_total>=N:   break
+        # now that we know what bit-sum range to use, grab all the keywords from that range, and randomly choose N.
+        bit_sum_min, bit_sum_max = min(bit_sums_to_use), max(bit_sums_to_use)
+        codewords_by_bit_sum = self.choose_codewords_by_bit_sum(bit_sum_min, bit_sum_max, replace_self=False)
+        new_codeword_set = set(random.sample(codewords_by_bit_sum, N))
+        return new_codeword_set
+        # MAYBE-TODO add an option to make it take all the codewords from all the bit-sum sets except the last one (and random from the last one to get up to N), instead of just taking random N ones from the whole range?  More complicated, not sure if useful.
 
     def give_N_codeword_list_by_bit_sum(self,N,remove_low=False):
         """ Sort all the codewords by bit sum (depends on remove_low), return the first N as a list.  
@@ -369,6 +406,7 @@ class Binary_code:
         # Sort the codewords by weight and then take the first N (see docstring)
         codewords.sort(key = lambda codeword: codeword.weight(), reverse=remove_low)
         return codewords[:N]
+    # TODO do I need this at all, or should I just always use give_N_codewords_by_bit_sum instead?
 
     def clonality_count_conflicts(self, N_allowed_changes=(0,0), count_self_conflict=False, remove_all_zero_codeword=False,
                                   print_conflict_details=False, return_conflict_details=False, quiet=False):
@@ -717,37 +755,54 @@ class Testing__Binary_code__most_functions(unittest.TestCase):
         assert E.find_bit_sum_counts() == [(0,1), (2,3)]
         assert E.total_bit_sum() == D.total_bit_sum() + 2
 
-    def test__choose_by_bit_sum(self):
+    def test__choose_codewords_by_bit_sum(self):
         D = Binary_code(2,['11','10','01','00'])
-        assert D.length == 2
-        assert D.size() == 4
-        assert D.find_Hamming_distance_range() == (1,2)
-        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
-        assert D.total_bit_sum() == 4
+        E = Binary_code(2,['11','00'])
+        # test normal cases with replace_self False
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(0,-1)]) == set(['00','01','10','11'])
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(0,2)]) == set(['00','01','10','11'])
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(0,1)]) == set(['00','01','10'])
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(0,0)]) == set(['00'])
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(1,2)]) == set(['01','10','11'])
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(1,-1)]) == set(['01','10','11'])
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(1,1)]) == set(['01','10'])
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(2,2)]) == set(['11'])
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(2,-1)]) == set(['11'])
+        assert set([c.string() for c in E.choose_codewords_by_bit_sum(0,2)]) == set(['00','11'])
+        assert set([c.string() for c in E.choose_codewords_by_bit_sum(0,-1)]) == set(['00','11'])
+        assert set([c.string() for c in E.choose_codewords_by_bit_sum(0,0)]) == set(['00'])
+        assert set([c.string() for c in E.choose_codewords_by_bit_sum(2,2)]) == set(['11'])
+        assert set([c.string() for c in E.choose_codewords_by_bit_sum(1,1)]) == set()
+        # test that empty sets are returned if the low-high range is empty
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(3,-1)]) == set()
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(4,100)]) == set()
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(4,1)]) == set()
+        assert set([c.string() for c in D.choose_codewords_by_bit_sum(1,0)]) == set()
+        # test the replace_self True version
         D_ = Binary_code(2,['11','10','01','00'])
-        D_.choose_by_bit_sum(0,2)
+        D_.choose_codewords_by_bit_sum(0,2,replace_self=True)
         assert D_ == D
         D_ = Binary_code(2,['11','10','01','00'])
-        D_.choose_by_bit_sum(0,0)
+        D_.choose_codewords_by_bit_sum(0,0,replace_self=True)
         assert D_.size() == 1
         assert D_.find_bit_sum_counts() == [(0,1)]
         D_ = Binary_code(2,['11','10','01','00'])
-        D_.choose_by_bit_sum(0,1)
+        D_.choose_codewords_by_bit_sum(0,1,replace_self=True)
         assert D_.size() == 3
         assert D_.find_bit_sum_counts() == [(0,1),(1,2)]
         D_ = Binary_code(2,['11','10','01','00'])
-        D_.choose_by_bit_sum(1,2)
+        D_.choose_codewords_by_bit_sum(1,2,replace_self=True)
         assert D_.size() == 3
         assert D_.find_bit_sum_counts() == [(1,2),(2,1)]
         D_ = Binary_code(2,['11','10','01','00'])
-        D_.choose_by_bit_sum(1,1)
+        D_.choose_codewords_by_bit_sum(1,1,replace_self=True)
         assert D_.size() == 2
         assert D_.find_bit_sum_counts() == [(1,2)]
         D_ = Binary_code(2,['11','10','01','00'])
-        D_.choose_by_bit_sum(0,-1)
+        D_.choose_codewords_by_bit_sum(0,-1,replace_self=True)
         assert D_ == D
         E = Binary_code(2,['11','00'])
-        E.choose_by_bit_sum(1,1)
+        E.choose_codewords_by_bit_sum(1,1,replace_self=True)
         assert E.size() == 0
 
     def test__give_N_codeword_list_by_bit_sum(self):
@@ -775,6 +830,52 @@ class Testing__Binary_code__most_functions(unittest.TestCase):
         assert D.give_N_codeword_list_by_bit_sum(1,True) == [b11]
         # check that it's impossible to get 5 elements from a 4-element binary code
         self.assertRaises(BinaryCodeError, D.give_N_codeword_list_by_bit_sum, 5, False)
+
+    def test__give_N_codewords_random(self):
+        D = Binary_code(2,['11','10','01','00'])
+        # do the test several times, since randomness is involved
+        for i in range(10):
+            # the actual codewords chosen are random, so just check that there's the right number of them,
+            #  that they're all unique, and that they all come from the original set
+            for N in range(5):
+                codewords = D.give_N_codewords_random(N)
+                assert len(codewords) == N
+                assert len(set(codewords)) == len(codewords)
+                assert all([c in D.codewords for c in codewords])
+            # check that it's impossible to get 5 elements from a 4-element binary code
+            self.assertRaises(BinaryCodeError, D.give_N_codewords_random, 5)
+
+    def test__give_N_codewords_by_bit_sum(self):
+        D = Binary_code(2,['11','10','01','00'])
+        # do the test several times, since randomness is involved
+        for i in range(10):
+            # the actual codewords chosen are random, so just check that there's the right number of them,
+            #  that they're all unique, and that they all come from the original set
+            for take_high in True, False:
+                for N in range(5):
+                    codewords = D.give_N_codewords_by_bit_sum(N, take_high=take_high)
+                    assert len(codewords) == N
+                    assert len(set(codewords)) == len(codewords)
+                    assert all([c in D.codewords for c in codewords])
+            # check that the bit-sums of the codewords are low or high as expected: first for take_high False, then True
+            #  (note that when picking 2 codewords, there's some variability in the bit-sum range!)
+            for N in 1,3,4:
+                assert min([c.weight() for c in D.give_N_codewords_by_bit_sum(N, False)]) == 0
+            assert min([c.weight() for c in D.give_N_codewords_by_bit_sum(2, False)]) in (0,1)
+            assert max([c.weight() for c in D.give_N_codewords_by_bit_sum(1, False)]) == 0
+            assert max([c.weight() for c in D.give_N_codewords_by_bit_sum(2, False)]) == 1
+            assert max([c.weight() for c in D.give_N_codewords_by_bit_sum(3, False)]) == 1
+            assert max([c.weight() for c in D.give_N_codewords_by_bit_sum(4, False)]) == 2
+            for N in 1,3,4:
+                assert max([c.weight() for c in D.give_N_codewords_by_bit_sum(N, True)]) == 2
+            assert max([c.weight() for c in D.give_N_codewords_by_bit_sum(2, True)]) in (1,2)
+            assert min([c.weight() for c in D.give_N_codewords_by_bit_sum(1, True)]) == 2
+            assert min([c.weight() for c in D.give_N_codewords_by_bit_sum(2, True)]) == 1
+            assert min([c.weight() for c in D.give_N_codewords_by_bit_sum(3, True)]) == 1
+            assert min([c.weight() for c in D.give_N_codewords_by_bit_sum(4, True)]) == 0
+            # check that it's impossible to get 5 elements from a 4-element binary code
+            for take_high in True, False:
+                self.assertRaises(BinaryCodeError, D.give_N_codewords_by_bit_sum, 5, take_high=take_high)
 
     def test__creation_from_matrix_generator_file(self):
         # (also implicitly checks generation from a matrix object)
