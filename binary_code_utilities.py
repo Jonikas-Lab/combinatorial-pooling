@@ -393,20 +393,6 @@ class Binary_code:
         return new_codeword_set
         # MAYBE-TODO add an option to make it take all the codewords from all the bit-sum sets except the last one (and random from the last one to get up to N), instead of just taking random N ones from the whole range?  More complicated, not sure if useful.
 
-    def give_N_codeword_list_by_bit_sum(self,N,remove_low=False):
-        """ Sort all the codewords by bit sum (depends on remove_low), return the first N as a list.  
-        If remove_low is False (default), we want to remove high-sum codewords, so sort normally and take N first ones.
-        If remove_low is True, we want to remove low-sum codewords, so sort reverse and take N first (highest) ones.
-        Sort by string value first to make sure the result is reproducible (so codewords with the same bit-sum are sorted
-        lexicographically).  Raise an error if N is higher than current code size. """
-        if N>self.size():
-            raise BinaryCodeError("Cannot reduce the code to %s elements, it's already only %s!"%(N,self.size()))
-        # Grab the codewords as a list; Sort normally (i.e. by string) just to make sure the result is reproducible.
-        codewords = sorted(list(self.codewords))
-        # Sort the codewords by weight and then take the first N (see docstring)
-        codewords.sort(key = lambda codeword: codeword.weight(), reverse=remove_low)
-        return codewords[:N]
-    # TODO do I need this at all, or should I just always use give_N_codewords_by_bit_sum instead?
 
     def clonality_count_conflicts(self, N_allowed_changes=(0,0), count_self_conflict=False, remove_all_zero_codeword=False,
                                   print_conflict_details=False, return_conflict_details=False, quiet=False):

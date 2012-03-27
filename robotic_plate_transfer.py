@@ -324,65 +324,61 @@ class Testing__assign_codewords(unittest.TestCase):
 
     def test__result_is_subset_of_right_length(self):
         """ Result should be a subset of the expected set and of the expected length (don't check the ordering yet). """
-        # (should work the same regardless of remove_low value)
-        for r in [True,False]:
-            s = set(assign_codewords(3,2,self.B_without_00,remove_low=r,quiet=True))
+        # (should work the same regardless of take_high value)
+        for h in [True,False]:
+            s = set(assign_codewords(3,2,self.B_without_00,take_high=h,quiet=True))
             assert s == set(self.b_list_without_00) and len(s) == 3
-            s = set(assign_codewords(2,2,self.B_without_00,remove_low=r,quiet=True))
+            s = set(assign_codewords(2,2,self.B_without_00,take_high=h,quiet=True))
             assert s.issubset(set(self.b_list_without_00)) and len(s) == 2
-            s = set(assign_codewords(1,2,self.B_without_00,remove_low=r,quiet=True))
+            s = set(assign_codewords(1,2,self.B_without_00,take_high=h,quiet=True))
             assert s.issubset(set(self.b_list_without_00)) and len(s) == 1
-            s = set(assign_codewords(3,5,self.B_longer,remove_low=r,quiet=True))
+            s = set(assign_codewords(3,5,self.B_longer,take_high=h,quiet=True))
             assert s == set(self.b_list_longer) and len(s) == 3
-            s = set(assign_codewords(2,5,self.B_longer,remove_low=r,quiet=True))
+            s = set(assign_codewords(2,5,self.B_longer,take_high=h,quiet=True))
             assert s.issubset(set(self.b_list_longer)) and len(s) == 2
-            s = set(assign_codewords(1,5,self.B_longer,remove_low=r,quiet=True))
+            s = set(assign_codewords(1,5,self.B_longer,take_high=h,quiet=True))
             assert s.issubset(set(self.b_list_longer)) and len(s) == 1
 
     def test__all_zero_codeword_always_removed(self):
         """ The all-zero codeword should always be thrown away. """
-        # (should work the same regardless of remove_low value)
-        for r in [True,False]:
-            assert self.b00 not in set(assign_codewords(3,2,self.B_with_00,remove_low=r,quiet=True))
-            assert self.b00 not in set(assign_codewords(2,2,self.B_with_00,remove_low=r,quiet=True))
-            assert self.b00 not in set(assign_codewords(1,2,self.B_with_00,remove_low=r,quiet=True))
+        # (should work the same regardless of take_high value)
+        for h in [True,False]:
+            assert self.b00 not in set(assign_codewords(3,2,self.B_with_00,take_high=h,quiet=True))
+            assert self.b00 not in set(assign_codewords(2,2,self.B_with_00,take_high=h,quiet=True))
+            assert self.b00 not in set(assign_codewords(1,2,self.B_with_00,take_high=h,quiet=True))
 
-    def test__words_sorted_by_weight(self):
-        """ The words should be sorted by weight, with the low-weight ones taken first (reverse if remove_low is True).
-        (Assume the order of same-weight words can be arbitrary - accept both cases.) """
-        assert assign_codewords(1,2,self.B_without_00,quiet=True) in [ [self.b01], [self.b10] ]
-        assert assign_codewords(2,2,self.B_without_00,quiet=True) in [ [self.b01,self.b10], [self.b10,self.b01] ]
-        assert assign_codewords(3,2,self.B_without_00,quiet=True) in [[self.b01,self.b10,self.b11], 
-                                                                      [self.b10,self.b01,self.b11]]
-        assert assign_codewords(1,5,self.B_longer,quiet=True) == [self.b10000]
-        assert assign_codewords(2,5,self.B_longer,quiet=True) == [self.b10000,self.b10001]
-        assert assign_codewords(3,5,self.B_longer,quiet=True) == [self.b10000,self.b10001,self.b01111]
-        # if remove_low is set to True, the sorting by weight should be reversed.
-        assert assign_codewords(1,2,self.B_without_00,remove_low=True,quiet=True) == [self.b11]
-        assert assign_codewords(2,2,self.B_without_00,remove_low=True,quiet=True) in [[self.b11,self.b10], 
-                                                                                      [self.b11,self.b01]]
-        assert assign_codewords(3,2,self.B_without_00,remove_low=True,quiet=True) in [[self.b11,self.b01,self.b10], 
-                                                                                      [self.b11,self.b10,self.b01]]
-        assert assign_codewords(1,5,self.B_longer,remove_low=True,quiet=True) == [self.b01111]
-        assert assign_codewords(2,5,self.B_longer,remove_low=True,quiet=True) == [self.b01111,self.b10001]
-        assert assign_codewords(3,5,self.B_longer,remove_low=True,quiet=True) == [self.b01111,self.b10001,self.b10000]
+    def test__correct_codewords(self):
+        """ The codewords chosen should be in the expected bit-sum subset (low or high depending on take_high). 
+        If the expected bit-sum subset contains exactly N codewords, the result is exact; otherwise a random subset.
+        The codewords should be sorted lexicographically."""
+        # do test multiple times, since randomness is involved
+        for i in range(10):
+            assert set(assign_codewords(1,2,self.B_without_00,quiet=True)).issubset([self.b01, self.b10])
+            assert assign_codewords(2,2,self.B_without_00,quiet=True) == [self.b01,self.b10]
+            assert assign_codewords(3,2,self.B_without_00,quiet=True) == [self.b01,self.b10,self.b11]
+            assert assign_codewords(1,5,self.B_longer,quiet=True) == [self.b10000]
+            assert assign_codewords(2,5,self.B_longer,quiet=True) == [self.b10000,self.b10001]
+            assert assign_codewords(3,5,self.B_longer,quiet=True) == [self.b01111,self.b10000,self.b10001]
+            # if take_high is set to True, the sorting by weight should be reversed.
+            assert assign_codewords(1,2,self.B_without_00,take_high=True,quiet=True) == [self.b11]
+            assert set(assign_codewords(2,2,self.B_without_00,take_high=True,quiet=True)).issubset([self.b01,
+                                                                                                    self.b10,self.b11])
+            assert assign_codewords(3,2,self.B_without_00,take_high=True,quiet=True) == [self.b01,self.b10,self.b11]
+            assert assign_codewords(1,5,self.B_longer,take_high=True,quiet=True) == [self.b01111]
+            assert assign_codewords(2,5,self.B_longer,take_high=True,quiet=True) == [self.b01111,self.b10001]
+            assert assign_codewords(3,5,self.B_longer,take_high=True,quiet=True) == [self.b01111,self.b10000,self.b10001]
 
-    def test__same_weight_words_sorted_lexicographically(self):
-        """ Words of the same weight should be sorted lexicographically (but I'm not sure we want to rely on that). """
-        assert assign_codewords(3,2,self.B_without_00,quiet=True) == [self.b01,self.b10,self.b11]
-        assert assign_codewords(3,2,self.B_without_00,remove_low=True,quiet=True) == [self.b11,self.b01,self.b10]
-
-    def test__same_weight_words_sorted_lexicographically(self):
+    def test__error_when_wrong_sample_or_pool_number(self):
         """ Function should fail when the number of samples or pools doesn't match. """
-        # (should work the same regardless of remove_low value)
-        for r in [True,False]:
+        # (should work the same regardless of take_high value)
+        for h in [True,False]:
             # Should be too many samples for given code
-            self.assertRaises(PlateTransferError, assign_codewords, 4,2,self.B_without_00,remove_low=r,quiet=True)
+            self.assertRaises(PlateTransferError, assign_codewords, 4,2,self.B_without_00,take_high=h,quiet=True)
             # Should be too many samples after '00' removal
-            self.assertRaises(PlateTransferError, assign_codewords, 4,2,self.B_with_00,remove_low=r,quiet=True)
+            self.assertRaises(PlateTransferError, assign_codewords, 4,2,self.B_with_00,take_high=h,quiet=True)
             # Number of pools doesn't match code length
-            self.assertRaises(PlateTransferError, assign_codewords, 4,1,self.B_without_00,remove_low=r,quiet=True)
-            self.assertRaises(PlateTransferError, assign_codewords, 4,3,self.B_without_00,remove_low=r,quiet=True)
+            self.assertRaises(PlateTransferError, assign_codewords, 4,1,self.B_without_00,take_high=h,quiet=True)
+            self.assertRaises(PlateTransferError, assign_codewords, 4,3,self.B_without_00,take_high=h,quiet=True)
 
 
 class Testing__make_Biomek_file_commands(unittest.TestCase):
@@ -631,7 +627,7 @@ def numbers_to_plate_and_well_IDs(N_samples, plate_type_name, N_plates, plate_ID
     return position_list
 
 
-def assign_codewords(N_samples, N_pools, binary_code, remove_low=False, quiet=False):
+def assign_codewords(N_samples, N_pools, binary_code, take_high=False, quiet=False):
     """ Return a list of Binary_codeword objects, of length N_samples - one codeword per sample, ordered. """
 
     if not N_pools == binary_code.length:
@@ -651,8 +647,8 @@ def assign_codewords(N_samples, N_pools, binary_code, remove_low=False, quiet=Fa
               + "will be used.  You may want to reduce your code size manually for improved attributes.")
 
     # get the desired number of samples from the binary code (returns a sorted list, original code is unchanged)
-    #  (removing either the low-weight or high-weight depending on the remove_low argument value)
-    codeword_list = binary_code.give_N_codeword_list_by_bit_sum(N_samples,remove_low=remove_low)
+    #  (taking either the low-weight or high-weight codewords depending on the take_high argument value)
+    codeword_list = sorted(list(binary_code.give_N_codewords_by_bit_sum(N_samples,take_high=take_high)))
     return codeword_list
 
 
