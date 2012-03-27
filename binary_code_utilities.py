@@ -418,7 +418,7 @@ class Binary_code:
                   +"contains the all-zero codeword - be aware that it's going to generate a clonality conflict with "
                   +"EVERYTHING. Set the remove_all_zero_codeword argument to True if you'd like to prevent that; "
                   +"set the quiet argument to True to silence this message.")
-        # MAYBT-TODO add a remove_all_one_codeword option too?  It's frequently bad to have it in there...
+        # TODO add a remove_all_one_codeword option too?  It's frequently bad to have it in there...
 
         # set up conflict-count dictionary, with a 0 for each codeword
         codeword_to_conflict_count = dict([(codeword,0) for codeword in self.codewords])
@@ -492,9 +492,18 @@ class Binary_code:
         if conflict_count_to_codeword_set.keys() in ([0],[]):   return False
         else:                                                   return True
 
-    def clonality_naive_reduction(self, N_allowed_changes=(0,0), count_self_conflict=False, remove_all_zero_codeword=False,
-                                  print_conflict_details=False, quiet=False):
-        """ Naive solution of the clonality problem, as in Goodman2009: return a set of codewords with 0 conflicts, 
+    def clonality_naive_reduction(self, N_allowed_changes=(0,0), count_self_conflict=False, 
+                                  remove_all_zero_codeword=False, print_conflict_details=False, quiet=False):
+        """ Imperfect solution of the clonality problem, as in Goodman2009: use clonality_count_conflicts to figure out 
+        which codewords participate in how many conflicts, then take the 0-conflict set and try adding more codewords to it
+        (lower-conflict-count ones first) until a conflict is caused. Return largest found no-conflict set that way.
+         See clonality_count_conflicts docstring for info on more of the arguments."""
+        pass
+        # TODO implement?  Use data from the return_conflict_details option in clonality_count_conflicts to look for conflicts with the current set and each added codeword, to avoid re-running the full SLOW clonality_count_conflicts function hundreds of times... See ../notes_combinatorial_pooling_theory.txt "Goodman2009 conflict-count solution" section.
+
+    def clonality_really_naive_reduction(self, N_allowed_changes=(0,0), count_self_conflict=False, 
+                                         remove_all_zero_codeword=False, print_conflict_details=False, quiet=False):
+        """ Really naive solution of the clonality problem: return a set of codewords with 0 conflicts, 
          as given by clonality_count_conflicts with the same arguments (see that function's docstring for more)."""
         conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflict, remove_all_zero_codeword, print_conflict_details, return_conflict_details=False, quiet=quiet)
         try:                return conflict_count_to_codeword_set[0]
@@ -503,10 +512,10 @@ class Binary_code:
     def reduce_by_Hamming_distance(self,low,high,min_count):
         """ Find a subset of at least min_count codewords with the Hamming distance for each pair in the low-high range."""
         pass
-        # MAYBE-TODO implement (see ../notes.txt clonality problem solution A for details)
+        # MAYBE-TODO implement (see ../notes_combinatorial_pooling_theory.txt "Maximum Hamming distance solution" section for details)
 
     # MAYBE-TODO implement some other options for reducing the set to one without clonality issues?
-    #  * Any other sensible algorithms for doing this?  See Clonality section of notes.txt. - I had some new ideas...
+    #  * Any other sensible algorithms for doing this?  See Clonality section of ../notes_combinatorial_pooling_theory.txt - I had some new ideas...
 
 
 class Testing__Binary_codeword(unittest.TestCase):
@@ -791,32 +800,6 @@ class Testing__Binary_code__most_functions(unittest.TestCase):
         E.choose_codewords_by_bit_sum(1,1,replace_self=True)
         assert E.size() == 0
 
-    def test__give_N_codeword_list_by_bit_sum(self):
-        D = Binary_code(2,['11','10','01','00'])
-        assert D.find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
-        # check that the highest (or lowest) bit-sum elements are removed first (the True/False argument is remove_low)
-        #   (returns a Binary_codeword list, so make a Binary_code from it again to check bit sum counts)
-        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(4,False)).find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
-        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(4,True)).find_bit_sum_counts() == [(0,1), (1,2), (2,1)]
-        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(3,False)).find_bit_sum_counts() == [(0,1), (1,2)]
-        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(3,True)).find_bit_sum_counts() == [(1,2), (2,1)]
-        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(2,False)).find_bit_sum_counts() == [(0,1), (1,1)]
-        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(2,True)).find_bit_sum_counts() == [(1,1), (2,1)]
-        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(1,False)).find_bit_sum_counts() == [(0,1)]
-        assert Binary_code(2,D.give_N_codeword_list_by_bit_sum(1,True)).find_bit_sum_counts() == [(2,1)]
-        # check the exact ordering of returned elements (sorted by bit sum, equal bit sum sorted lexicographically)
-        [b01,b10,b11,b00] = [Binary_codeword(x) for x in ['01','10','11','00']]
-        assert D.give_N_codeword_list_by_bit_sum(4,False) == [b00,b01,b10,b11]
-        assert D.give_N_codeword_list_by_bit_sum(4,True) == [b11,b01,b10,b00]
-        assert D.give_N_codeword_list_by_bit_sum(3,False) == [b00,b01,b10]
-        assert D.give_N_codeword_list_by_bit_sum(3,True) == [b11,b01,b10]
-        assert D.give_N_codeword_list_by_bit_sum(2,False) == [b00,b01]
-        assert D.give_N_codeword_list_by_bit_sum(2,True) == [b11,b01]
-        assert D.give_N_codeword_list_by_bit_sum(1,False) == [b00]
-        assert D.give_N_codeword_list_by_bit_sum(1,True) == [b11]
-        # check that it's impossible to get 5 elements from a 4-element binary code
-        self.assertRaises(BinaryCodeError, D.give_N_codeword_list_by_bit_sum, 5, False)
-
     def test__give_N_codewords_random(self):
         D = Binary_code(2,['11','10','01','00'])
         # do the test several times, since randomness is involved
@@ -883,7 +866,7 @@ class Testing__Binary_code__most_functions(unittest.TestCase):
         assert B20_new == B20
 
 class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
-    """ Tests clonality_count_conflicts, clonality_naive_reduction, and clonality_conflict_check (since those 
+    """ Tests clonality_count_conflicts, clonality_really_naive_reduction, and clonality_conflict_check (since those 
     functions are trivially derived from clonality_count_conflicts and are easiest to test with the same setup)"""
 
     def test__empty_code_gives_no_conflicts(self):
@@ -892,7 +875,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         for SC,RZ in [(True,True,),(True,False),(False,True),(False,False)]:
             for N_changes in [0,2,(0,0),(1,0),(0,1),(3,3),(1,10)]:
                 assert A.clonality_count_conflicts(N_changes,SC,RZ,return_conflict_details=True,quiet=True) == ({},set())
-                assert A.clonality_naive_reduction(N_changes,SC,RZ,quiet=True) == set()
+                assert A.clonality_really_naive_reduction(N_changes,SC,RZ,quiet=True) == set()
                 assert A.clonality_conflict_check(N_changes,SC,RZ,quiet=True) == False 
 
     def test__count_self_conflicts__and__remove_all_zero_codeword(self):
@@ -905,18 +888,18 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         set_no_zero = frozenset([b110,b101,b011])
         for RZ,out_set in [(False,full_set), (True,set_no_zero)]:
             assert B.clonality_count_conflicts(0,False,RZ,return_conflict_details=True,quiet=True) == ({0:out_set}, set())
-            assert B.clonality_naive_reduction(0,False,RZ,quiet=True) == out_set
+            assert B.clonality_really_naive_reduction(0,False,RZ,quiet=True) == out_set
             assert B.clonality_conflict_check(0,False,RZ,quiet=True) == False 
         # with self-conflict counted, and with all-zero keyword - clonality conflicts
         B = Binary_code(3,[b110,b101,b011,b000])    # need to re-make it because the all-zero codeword was removed above
         conflicts = set([(frozenset([b000,x]),x,frozenset([x]),'self',0) for x in set_no_zero])
         result = {1:set_no_zero, 3:set([b000])}
         assert B.clonality_count_conflicts(0,True,False,return_conflict_details=True,quiet=True) == (result,conflicts)
-        assert B.clonality_naive_reduction(0,True,False,quiet=True) == set()
+        assert B.clonality_really_naive_reduction(0,True,False,quiet=True) == set()
         assert B.clonality_conflict_check(0,True,False,quiet=True) == True 
         # with self-conflict counted, but removing all-zero keyword - no clonality conflicts
         assert B.clonality_count_conflicts(0,True,True,return_conflict_details=True,quiet=True) == ({0:set_no_zero}, set())
-        assert B.clonality_naive_reduction(0,True,True,quiet=True) == set_no_zero
+        assert B.clonality_really_naive_reduction(0,True,True,quiet=True) == set_no_zero
         assert B.clonality_conflict_check(0,True,True,quiet=True) == False 
 
     def test__count_self_conflicts__allowed_changes_zero(self):
@@ -927,12 +910,12 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         full_set = frozenset([b01,b11])
         # with no self-conflict - no conflicts
         assert C.clonality_count_conflicts(0,False,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
-        assert C.clonality_naive_reduction(0,False,quiet=True) == full_set
+        assert C.clonality_really_naive_reduction(0,False,quiet=True) == full_set
         assert C.clonality_conflict_check(0,False,quiet=True) == False 
         # with self-conflict on - conflicts!
         conflicts = set([(full_set,b11,frozenset([b11]),'self',0)])
         assert C.clonality_count_conflicts(0,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
-        assert C.clonality_naive_reduction(0,True,quiet=True) == set()
+        assert C.clonality_really_naive_reduction(0,True,quiet=True) == set()
         assert C.clonality_conflict_check(0,True,quiet=True) == True 
 
     def test__count_self_conflicts__allowed_changes_nonzero(self):
@@ -944,18 +927,18 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         # with 0 allowed 0-to-1 changes - no conflicts even with self-conflict on
         for NC in [0,(0,0),(1,0),(2,0),(9,0)]:
             assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
-            assert C.clonality_naive_reduction(NC,True,quiet=True) == full_set
+            assert C.clonality_really_naive_reduction(NC,True,quiet=True) == full_set
             assert C.clonality_conflict_check(NC,True,quiet=True) == False 
         # with at least one allowed 0-to-1 change but no self-conflict - no conflicts
         for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
             assert C.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
-            assert C.clonality_naive_reduction(NC,False,quiet=True) == full_set
+            assert C.clonality_really_naive_reduction(NC,False,quiet=True) == full_set
             assert C.clonality_conflict_check(NC,False,quiet=True) == False 
         # with at least one allowed 0-to-1 change and self-conflict on - conflicts!
         for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
             conflicts = set([(full_set,b11,full_set,'self',NC)])
             assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
-            assert C.clonality_naive_reduction(NC,True,quiet=True) == set()
+            assert C.clonality_really_naive_reduction(NC,True,quiet=True) == set()
             assert C.clonality_conflict_check(NC,True,quiet=True) == True 
 
     def test__no_self_conflicts__allowed_changes_nonzero__1(self):
@@ -973,17 +956,17 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         for NC in [0,(0,0),(1,0),(2,0),(9,0)]:
             conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b0011]),'',NC)])
             assert D.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) ==({1:full_set},conflicts)
-            assert D.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert D.clonality_really_naive_reduction(NC,False,quiet=True) == set()
             assert D.clonality_conflict_check(NC,False,quiet=True) == True 
         # with multiple allowed 0->1 changes, three conflicts, because 0011+0010=0011 would conflict with 0001, etc
         for NC in [1,(1,1),4,(3,3),5,10]:
             assert D.clonality_count_conflicts(NC,False,return_conflict_details=False,quiet=True) == {3:full_set}
-            assert D.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert D.clonality_really_naive_reduction(NC,False,quiet=True) == set()
             assert D.clonality_conflict_check(NC,False,quiet=True) == True 
         E = Binary_code(4,[b0001,b0010,b0011,b1111])
         # note that if we add b1111 to the set, with no allowed 1->0 changes that doesn't conflict with anything
         for NC in [0,(0,0),(1,0)]:
-            assert E.clonality_naive_reduction(NC,False,quiet=True) == set([b1111])
+            assert E.clonality_really_naive_reduction(NC,False,quiet=True) == set([b1111])
             assert E.clonality_conflict_check(NC,False,quiet=True) == True 
         ### 0001, 0010 -> 0011; expect a clonality conflict with 0111 with 1 allowed 1->0 change
         F = Binary_code(4,[b0001,b0010,b0111])
@@ -991,18 +974,18 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         # with no 1->0 changes allowed (and up to one 0->1 change), there are no conflicts
         for NC in [0,(0,0),(0,1)]:
             assert F.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set},set())
-            assert F.clonality_naive_reduction(NC,False,quiet=True) == full_set
+            assert F.clonality_really_naive_reduction(NC,False,quiet=True) == full_set
             assert F.clonality_conflict_check(NC,False,quiet=True) == False 
         # with one or more 1->0 changes allowed, there's one conflict (0001+0010=0011 with 0111)
         for NC in [1,(1,0),(2,0),(1,1)]:
             conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b0111]),'',NC)])
             assert F.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) ==({1:full_set},conflicts)
-            assert F.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert F.clonality_really_naive_reduction(NC,False,quiet=True) == set()
             assert F.clonality_conflict_check(NC,False,quiet=True) == True 
         # with 2+ 0->1 changes AND 1+ 1->0 changes, all three possible conflicts (0111+0001=0111 conflict with 0010 etc)
         for NC in [2,(1,2),(2,2),9,(9,9)]:
             assert F.clonality_count_conflicts(NC,False,return_conflict_details=False,quiet=True) =={3:full_set}
-            assert F.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert F.clonality_really_naive_reduction(NC,False,quiet=True) == set()
             assert F.clonality_conflict_check(NC,False,quiet=True) == True 
         ### 0001, 0010 -> 0011; expect a clonality conflict with 1111 with 2 allowed 1->0 changes
         G = Binary_code(4,[b0001,b0010,b1111])
@@ -1010,18 +993,18 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         # with 0 or 1 1->0 changes allowed (and up to one 0->1 change), there are no conflicts
         for NC in [0,(0,0),(0,1),1,(1,0),(1,1)]:
             assert G.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set},set())
-            assert G.clonality_naive_reduction(NC,False,quiet=True) == full_set
+            assert G.clonality_really_naive_reduction(NC,False,quiet=True) == full_set
             assert G.clonality_conflict_check(NC,False,quiet=True) == False 
         # with two or more 1->0 changes allowed, there's one conflict (0001+0010=0011 with 1111)
         for NC in [2,(2,0),(2,1),(2,2),(9,0),(9,2)]:
             conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b1111]),'',NC)])
             assert G.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) ==({1:full_set},conflicts)
-            assert G.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert G.clonality_really_naive_reduction(NC,False,quiet=True) == set()
             assert G.clonality_conflict_check(NC,False,quiet=True) == True 
         # with 3+ 0->1 changes AND 2+ 1->0 changes, all three possible conflicts (0111+0001=1111 conflict with 0010 etc)
         for NC in [3,(2,3),9,(9,9)]:
             assert G.clonality_count_conflicts(NC,False,return_conflict_details=False,quiet=True) =={3:full_set}
-            assert G.clonality_naive_reduction(NC,False,quiet=True) == set()
+            assert G.clonality_really_naive_reduction(NC,False,quiet=True) == set()
             assert G.clonality_conflict_check(NC,False,quiet=True) == True 
         # see experiments/generating_library/1110_clonality_check_troubleshooting/notes.txt for more tests/notes
 
@@ -1051,7 +1034,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert code.clonality_count_conflicts(N_changes,False,return_conflict_details=False,quiet=True) == result 
             if 0 in result:     expected_outcome_1 = result[0]
             else:               expected_outcome_1 = set()
-            assert code.clonality_naive_reduction(N_changes,False,quiet=True) == expected_outcome_1
+            assert code.clonality_really_naive_reduction(N_changes,False,quiet=True) == expected_outcome_1
             expected_outcome_2 = (False if result.keys()==[0] else True)
             assert code.clonality_conflict_check(N_changes,False,quiet=True) == expected_outcome_2 
 
