@@ -40,6 +40,9 @@ class Plate_type:
     def __init__(self, size=None, well_ID_list=None):
         """ Either use well_ID_list as the number:ID mapping, or assume a standard plate based on size (string)."""
         # if well_ID_list is passed directly, just use it (and check that the size matches, if not None)
+        # MAYBE-TODO could give the plate types names?
+        # MAYBE-TODO could make Plate_type class collect a dictionary of all the initialized plate types by name?
+        # MAYBE-TODO could give each plate type a max volume
         if well_ID_list is not None:
             self.well_ID_list = well_ID_list
             self.size = len(well_ID_list)
@@ -935,6 +938,8 @@ def define_option_parser():
                       help="Liquid volume to use for each sample-to-pool transfer (default %default).")
     parser.add_option('-H','--Biomek_file_header', default="SourcePlt,SourceWell,DestPlt,DestWell,Volume", metavar='S', 
                       help="Header line for the Biomek transfer file (won't be printed if set to ''; default %default).")
+
+    # MAYBE-TODO add max sample and pool volume options to make the program auto-check that they aren't exceeded
 
     # MAYBE-TODO add a minimum Hamming distance option, make the program check that all pairs in the final codeword set satisfy that?
     # MAYBE-TODO same for bit-sum limit for when I want to specify that
