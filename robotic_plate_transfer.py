@@ -523,16 +523,17 @@ def do_test_run():
     # MAYBE-TODO may want to remove those after I have enough real tests above... Or at least make them optional.
     print("\n*** SMOKE TEST RUNS - THE OUTPUT IS NOT CHECKED, WE'RE JUST MAKING SURE THERE ARE NO ERRORS. ***")
 
-    if os.access("./smoke-test_outputs",os.F_OK):
-        print("Test output files will be saved in the smoke-test_outputs directory (already present - removing it now).")
-        shutil.rmtree("./smoke-test_outputs")
+    smoketest_folder = "test_data/smoke-test_outputs"
+    if os.access(smoketest_folder,os.F_OK):
+        print("Test output files will be saved in the %s directory (already present - removing it now)."%smoketest_folder)
+        shutil.rmtree(smoketest_folder)
     else:
-        print("Test output files will be saved in the smoke-test_outputs directory (not present - creating it now).")
-    os.mkdir("./smoke-test_outputs")
+        print("Test output files will be saved in the %s directory (not present - creating it now)."%smoketest_folder)
+    os.mkdir(smoketest_folder)
 
-    test_runs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator smoke-test_outputs/test1 -q", 
-              "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator smoke-test_outputs/test2 -q", 
-             "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator smoke-test_outputs/test3 -q"]
+    test_runs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator %s/test1 -q"%smoketest_folder, 
+              "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator %s/test2 -q"%smoketest_folder, 
+             "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator %s/test3 -q"%smoketest_folder]
     # MAYBE-TODO add name/description strings to the test cases?
     for test_run in test_runs:
         print(" * New smoke-test run, with arguments:\n   %s"%test_run)
