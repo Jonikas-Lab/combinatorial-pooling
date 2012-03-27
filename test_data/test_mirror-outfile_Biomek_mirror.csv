@@ -3,8 +3,8 @@ Source,A1,Destination_mirror,A1,20
 Source,A1,Destination_mirror,A2,20
 Source,A2,Destination_mirror,A1,20
 Source,A2,Destination_mirror,A3,20
-Source,A3,Destination_mirror,A2,20
-Source,A3,Destination_mirror,A3,20
-Source,A4,Destination_mirror,A1,20
+Source,A3,Destination_mirror,A1,20
+Source,A4,Destination_mirror,A2,20
+Source,A4,Destination_mirror,A3,20
 Source,A5,Destination_mirror,A2,20
 Source,A6,Destination_mirror,A3,20

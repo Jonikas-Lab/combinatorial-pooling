@@ -1,9 +1,9 @@
 SourcePlt,SourceWell,DestPlt,DestWell,Volume
 Source,A1,Destination,A3,20
 Source,A2,Destination,A2,20
-Source,A3,Destination,A1,20
-Source,A4,Destination,A2,20
-Source,A4,Destination,A3,20
+Source,A3,Destination,A2,20
+Source,A3,Destination,A3,20
+Source,A4,Destination,A1,20
 Source,A5,Destination,A1,20
 Source,A5,Destination,A3,20
 Source,A6,Destination,A1,20
