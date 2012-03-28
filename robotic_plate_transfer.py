@@ -1047,6 +1047,7 @@ if __name__=='__main__':
         print("Defined plate sizes: %s"%defined_plate_types)
         # tun unittest.main, passing it no arguments (by default it takes sys.argv and complains about the -t)
         unittest.main(argv=[sys.argv[0]])
+        # MAYBE-TODO make it run unit-tests for everything it imports too? Especially binary_code_utilities...
         # MAYBE-TODO unittest.main automatically quits - there's no way of doing -t and -T at once.  Do I care?
         #   may be fixed in a future version, and there is a patch: http://bugs.python.org/issue3379
 
