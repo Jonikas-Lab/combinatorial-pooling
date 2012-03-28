@@ -562,8 +562,7 @@ class Binary_code:
         ### repeat randomly generating an order and making a subset multiple times, return the best (and a trial summary)
         best_subset = set()
         all_subset_lengths = []
-        all_subsets = set()
-        codeword_addition_orders = set()
+        multiple_subsets, multiple_codeword_addition_orders, prev_codewords_addition_order = False, False, []
         for i in range(N_repeats):
             ### what order all the codewords should be attempted-added in: (ignore codewords already in starting_subset)
             # default: based on conflict-count per codeword (lowest first), random within that
@@ -578,8 +577,6 @@ class Binary_code:
                 codewords_to_add = [c for c in self.codewords if c not in starting_subset]
                 random.shuffle(codewords_to_add)
             assert len(codewords_to_add) + len(starting_subset) == len(self.codewords)
-            # keep track of all the codeword orders to make sure they're not always the same!
-            codeword_addition_orders.add(tuple(codewords_to_add))
 
             # go over the codewords_to_add list: if the current codeword has no conflicts with current_subset, add it, 
             #  otherwise skip and go on to the next one.
@@ -590,16 +587,24 @@ class Binary_code:
                 if count_conflicts_codeword_and_set(codeword_to_conflict_pairs[codeword], current_subset) == 0:
                     current_subset.add(codeword)
 
+            # check if the codeword addition order and resulting subset is always the same or not
+            if not multiple_codeword_addition_orders and prev_codewords_addition_order!=[]:
+                if prev_codewords_addition_order != codewords_to_add:
+                    multiple_codeword_addition_orders = True
+            if not multiple_subsets and best_subset!=set() and current_subset != best_subset:
+                multiple_subsets = True
+
             all_subset_lengths.append(len(current_subset))
-            all_subsets.add(frozenset(current_subset))
             if len(current_subset) > len(best_subset):
                 best_subset = current_subset
 
+        # check that the results are sane; print warnings if there's something suspicions
         assert len(best_subset) == max(all_subset_lengths)
-        if not quiet and N_repeats>1 and len(codeword_addition_orders)==1:
-            print("Warning: Only 1 random order of %s elements in %s repeats - randomness very suspicious!"
-                  %(len(codewords_to_add), N_repeats))
-        if not quiet and N_repeats>1 and len(all_subsets)==1:
+        if not quiet and N_repeats>1 and (len(self.codewords)-len(starting_subset) > 1):
+            if not multiple_codeword_addition_orders:
+                print("WARNING: Only 1 random order of %s elements in %s repeats - RANDOMNESS PROBABLY FAILING!"
+                      %(len(codewords_to_add), N_repeats))
+        if not quiet and N_repeats>1 and not multiple_subsets:
             print("Warning: The same subset always found in %s repeats - something may be wrong!"%N_repeats)
 
         if N_repeats>1 and return_repeat_summary:   return best_subset, all_subset_lengths
