@@ -394,14 +394,14 @@ class Binary_code:
         # MAYBE-TODO add an option to make it take all the codewords from all the bit-sum sets except the last one (and random from the last one to get up to N), instead of just taking random N ones from the whole range?  More complicated, not sure if useful.
 
 
-    def clonality_count_conflicts(self, N_allowed_changes=(0,0), count_self_conflict=False, remove_all_zero_codeword=False,
+    def clonality_count_conflicts(self, N_allowed_changes=(0,0), count_self_conflicts=False,remove_all_zero_codeword=False,
                                   print_conflict_details=False, return_conflict_details=False, quiet=False):
         """ Simple clonality conflict count.  Return a (conflict_count: codeword_set) dictionary.
         Go over all combinations of codewords A,B,C in the code, and whenever the clonality sum A+B is close enough to C  
          according to N_allowed changes (which can be either a single number or a (1_to_0_changes, 0_to_1_changes) tuple)
          add one conflict count to all three codewords. 
-        The count_self_conflict argument specifies whether A+B=A is considered as a problem the same way A+B=C is; 
-         if count_self_conflict is True, you may want to also set remove_all_zero_codeword to True, 
+        The count_self_conflicts argument specifies whether A+B=A is considered as a problem the same way A+B=C is; 
+         if count_self_conflicts is True, you may want to also set remove_all_zero_codeword to True, 
          otherwise it'll conflict with everything (a warning will be printed).
         Codewords with 0 conflicts are guaranteed not to generate problems, but nothing very useful can be said about
          how many and which of the ones with low counts could be added to that set without generating clonality issues.
@@ -411,10 +411,10 @@ class Binary_code:
           a self-conflict and '' otherwise, and n is N_allowed_changes (since I don't have the real N_changes available).
         """
 
-        # deal with all-zero codeword: remove if requested, print warning if it's False and count_self_conflict is True
+        # deal with all-zero codeword: remove if requested, print warning if it's False and count_self_conflicts is True
         if remove_all_zero_codeword:    self.remove_extreme_codeword(bit=0)
-        elif count_self_conflict and (Binary_codeword('0'*self.length) in self.codewords) and not quiet:
-            print("Warning: you're running a clonality conflict check with count_self_conflict turned on, and your code "
+        elif count_self_conflicts and (Binary_codeword('0'*self.length) in self.codewords) and not quiet:
+            print("Warning: you're running a clonality conflict check with count_self_conflicts turned on, and your code "
                   +"contains the all-zero codeword - be aware that it's going to generate a clonality conflict with "
                   +"EVERYTHING. Set the remove_all_zero_codeword argument to True if you'd like to prevent that; "
                   +"set the quiet argument to True to silence this message.")
@@ -432,9 +432,9 @@ class Binary_code:
                 clonality_result = A|B
                 conflict_details = None
                 conflict_info = (frozenset([A,B]),clonality_result,frozenset([clonality_result]))
-                # if clonality_result is A or B, what to do depends on if count_self_conflict is True
+                # if clonality_result is A or B, what to do depends on if count_self_conflicts is True
                 if clonality_result in [A,B]:
-                    if count_self_conflict:
+                    if count_self_conflicts:
                         for codeword in A,B:
                             codeword_to_conflict_count[codeword] += 1
                         # MAYBE-TODO use short string representations for A,B,clonality_result?  Or only when printing?...
@@ -466,8 +466,8 @@ class Binary_code:
                         conflict_set = frozenset(expanded_conflict_values[clonality_result] - set([A,B]))
                         conflict_details = (frozenset([A,B]),clonality_result,conflict_set,'',N_allowed_changes)
                     # if the list of base codewords for the conflict was only A/B, 
-                    #   only register a conflict is count_self_conflict is True
-                    elif count_self_conflict:
+                    #   only register a conflict is count_self_conflicts is True
+                    elif count_self_conflicts:
                         for codeword in A,B:
                             codeword_to_conflict_count[codeword] += 1
                         conflict_set = frozenset(expanded_conflict_values[clonality_result] & set([A,B]))
@@ -480,37 +480,45 @@ class Binary_code:
         if return_conflict_details:     return conflict_count_to_codeword_set, all_conflict_details
         else:                           return conflict_count_to_codeword_set
 
-    def clonality_conflict_check(self, N_allowed_changes=(0,0), count_self_conflict=False, remove_all_zero_codeword=False,
+    def clonality_conflict_check(self, N_allowed_changes=(0,0), count_self_conflicts=False, remove_all_zero_codeword=False,
                                   print_conflict_details=False, quiet=False):
         """ Return False if the code contains no clonality conflicts based on arguments, True otherwise.
         Passes all its arguments to clonality_count_conflicts - see that function's docstring for details."""
         # MAYBE-TODO could rewrite this to be much faster by writing it separately and having it just go on until
         #   the first conflict and then return True, instead of using clonality_count_conflicts and thus needing to
         #   go through all the combinations, but I'm not sure it's worth it.
-        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflict, remove_all_zero_codeword, print_conflict_details, return_conflict_details=False, quiet=quiet)
+        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflicts, 
+                            remove_all_zero_codeword, print_conflict_details, return_conflict_details=False, quiet=quiet)
         if conflict_count_to_codeword_set.keys() in ([0],[]):   return False
         else:                                                   return True
 
-    def clonality_obvious_no_conflict_subset(self, N_allowed_changes=(0,0), count_self_conflict=False, 
+    def clonality_obvious_no_conflict_subset(self, N_allowed_changes=(0,0), count_self_conflicts=False, 
                                          remove_all_zero_codeword=False, print_conflict_details=False, quiet=False):
         """ Really naive solution of the clonality problem: return a set of codewords with 0 conflicts, 
          as given by clonality_count_conflicts with the same arguments (see that function's docstring for more)."""
-        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflict, remove_all_zero_codeword, print_conflict_details, return_conflict_details=False, quiet=quiet)
+        conflict_count_to_codeword_set = self.clonality_count_conflicts(N_allowed_changes, count_self_conflicts, 
+                            remove_all_zero_codeword, print_conflict_details, return_conflict_details=False, quiet=quiet)
         try:                return conflict_count_to_codeword_set[0]
         except KeyError:    return set()
 
-    def clonality_grow_no_conflict_subset(self, N_allowed_changes=(0,0), count_self_conflict=False, 
-                      remove_all_zero_codeword=False, starting_subset=None, N_repeats=1, more_random=False, quiet=False):
-        """ Imperfect solution of the clonality problem, as in Goodman2009: use clonality_count_conflicts to figure out 
-        which codewords participate in how many conflicts, then take the 0-conflict set and try adding more codewords to it
-         (lower-conflict-count ones first) until a conflict is caused. Return largest found no-conflict set that way.
-        Optionally take a starting_subset of no-conflict codewords and try adding to that instead of starting from scratch.
-        See clonality_count_conflicts docstring for info on the remaining arguments."""
-        # TODO rewrite docstring to reflect new stuff!
+    def clonality_grow_no_conflict_subset(self, N_allowed_changes=(0,0), starting_subset=None, more_random=False, 
+           N_repeats=1, return_repeat_summary=False, 
+           count_self_conflicts=False, remove_all_zero_codeword=False, quiet=False):
+        """ Imperfect iterative partially-random codeword addition solution to the clonality problem, close to Goodman2009.
+
+        First use self.clonality_count_conflicts to get the full conflict graph, using the N_allowed_changes, 
+         count_self_conflicts and remove_all_zero_codeword argument values provided.
+        Then repeat the following N_repeats times and return the best result:
+         Starting from starting_subset (empty by default), try adding one codeword at a time to the subset: 
+          only add the codeword if the result is conflict-free, and keep going until all codewords have been tried.
+          If more_random is True, the codewords will be tried in random order; otherwise they will be sorted by the total
+           number of conflicts they participate in, and only random within that.
+        Return the resulting no-conflict codeword set; if N_repeats>1 and return_repeat_summary is True, 
+         also return a list of the lengths of all the N_repeats codeword sets found.
+        """
         ### First get all the detailed conflict-count info
         conflict_count_to_codeword_set, conflict_detail_tuples = self.clonality_count_conflicts(N_allowed_changes, 
-                                                                            count_self_conflict, remove_all_zero_codeword, 
-                                                                            return_conflict_details=True, quiet=quiet)
+                            count_self_conflicts, remove_all_zero_codeword, return_conflict_details=True, quiet=quiet)
         # conflict_count_to_codeword_set is a conflict_count:codeword_set dictionary.
         # conflict_detail_tuples is a set of (set(A,B), A|B, conflicting_codeword_set, if_self, N_allowed_changes) tuples
 
@@ -594,13 +602,8 @@ class Binary_code:
         if not quiet and N_repeats>1 and len(all_subsets)==1:
             print("Warning: The same subset always found in %s repeats - something may be wrong!"%N_repeats)
 
-        if N_repeats>1:     return best_subset, all_subset_lengths
-        else:               return best_subset
-
-        # TODO add N_repeats to unit-tests!
-        # TODO rewrite the unit-tests to deal with the new return value (maybe only return all_subset_lengths if N_repeats>1, or make an option for whether to return it or not?
-        # TODO rewrite unit-tests to take advantage of N_repeats instead of repeating this multiple times themselves!
-        # TODO add more_random to unit-tests!
+        if N_repeats>1 and return_repeat_summary:   return best_subset, all_subset_lengths
+        else:                                       return best_subset
 
     # MAYBE-TODO implement some other options for reducing the set to one without clonality issues?
     #  * Any other sensible algorithms for doing this?  See Clonality section of ../notes_combinatorial_pooling_theory.txt - I had some new ideas...
@@ -965,7 +968,8 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
                 assert A.clonality_count_conflicts(N_changes,SC,RZ,return_conflict_details=True,quiet=True) == ({},set())
                 assert A.clonality_conflict_check(N_changes,SC,RZ,quiet=True) == False 
                 assert A.clonality_obvious_no_conflict_subset(N_changes,SC,RZ,quiet=True) == set()
-                assert A.clonality_grow_no_conflict_subset(N_changes,SC,RZ,None,quiet=True) == set()
+                assert A.clonality_grow_no_conflict_subset(N_changes, starting_subset=None, more_random=False,
+                                               count_self_conflicts=SC,remove_all_zero_codeword=RZ,quiet=True) == set()
 
     def test__count_self_conflicts__and__remove_all_zero_codeword(self):
         """ testing that count_self_conflicts and remove_all_zero_codeword work, with N_allowed_changes 0."""
@@ -979,10 +983,9 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert B.clonality_count_conflicts(0,False,RZ,return_conflict_details=True,quiet=True) == ({0:out_set}, set())
             assert B.clonality_conflict_check(0,False,RZ,quiet=True) == False 
             assert B.clonality_obvious_no_conflict_subset(0,False,RZ,quiet=True) == out_set
-            assert B.clonality_grow_no_conflict_subset(0,False,RZ,starting_subset=None,quiet=True) == out_set
-            assert B.clonality_grow_no_conflict_subset(0,False,RZ,starting_subset=out_set,quiet=True) == out_set
-            assert B.clonality_grow_no_conflict_subset(0,False,RZ,starting_subset=set([b110]),quiet=True) == out_set
-            assert B.clonality_grow_no_conflict_subset(0,False,RZ,starting_subset=set([b101]),quiet=True) == out_set
+            for starting_set in [None, out_set, set([b110]), set([b101])]:
+                assert B.clonality_grow_no_conflict_subset(0,starting_subset=starting_set, 
+                                                           remove_all_zero_codeword=RZ,quiet=True) == out_set
         # with self-conflict counted, and with all-zero keyword - clonality conflicts
         B = Binary_code(3,[b110,b101,b011,b000])    # need to re-make it because the all-zero codeword was removed above
         conflicts = set([(frozenset([b000,x]),x,frozenset([x]),'self',0) for x in set_no_zero])
@@ -990,12 +993,14 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         assert B.clonality_count_conflicts(0,True,False,return_conflict_details=True,quiet=True) == (result,conflicts)
         assert B.clonality_conflict_check(0,True,False,quiet=True) == True 
         assert B.clonality_obvious_no_conflict_subset(0,True,False,quiet=True) == set()
-        assert B.clonality_grow_no_conflict_subset(0,True,False,quiet=True) == set_no_zero
+        assert B.clonality_grow_no_conflict_subset(0,count_self_conflicts=True,
+                                                   remove_all_zero_codeword=False, quiet=True) == set_no_zero
         # with self-conflict counted, but removing all-zero keyword - no clonality conflicts
         assert B.clonality_count_conflicts(0,True,True,return_conflict_details=True,quiet=True) == ({0:set_no_zero}, set())
         assert B.clonality_conflict_check(0,True,True,quiet=True) == False 
         assert B.clonality_obvious_no_conflict_subset(0,True,True,quiet=True) == set_no_zero
-        assert B.clonality_grow_no_conflict_subset(0,True,True,quiet=True) == set_no_zero
+        assert B.clonality_grow_no_conflict_subset(0,count_self_conflicts=True,
+                                                   remove_all_zero_codeword=True,quiet=True) == set_no_zero
 
     def test__count_self_conflicts__allowed_changes_zero(self):
         """ testing count_self_conflicts with N_allowed_changes 0 but without involving the all-zero codeword."""
@@ -1007,13 +1012,13 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         assert C.clonality_count_conflicts(0,False,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
         assert C.clonality_conflict_check(0,False,quiet=True) == False 
         assert C.clonality_obvious_no_conflict_subset(0,False,quiet=True) == full_set
-        assert C.clonality_grow_no_conflict_subset(0,False,quiet=True) == full_set
+        assert C.clonality_grow_no_conflict_subset(0,count_self_conflicts=False,quiet=True) == full_set
         # with self-conflict on - conflicts!
         conflicts = set([(full_set,b11,frozenset([b11]),'self',0)])
         assert C.clonality_count_conflicts(0,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
         assert C.clonality_conflict_check(0,True,quiet=True) == True 
         assert C.clonality_obvious_no_conflict_subset(0,True,quiet=True) == set()
-        assert len(C.clonality_grow_no_conflict_subset(0,True,quiet=True)) == 1
+        assert len(C.clonality_grow_no_conflict_subset(0,count_self_conflicts=True,quiet=True)) == 1
 
     def test__count_self_conflicts__allowed_changes_nonzero(self):
         """ testing count_self_conflicts with N_allowed_changes other than 0; remove_all_zero_codeword not involved."""
@@ -1026,24 +1031,24 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
             assert C.clonality_conflict_check(NC,True,quiet=True) == False 
             assert C.clonality_obvious_no_conflict_subset(NC,True,quiet=True) == full_set
-            assert C.clonality_grow_no_conflict_subset(NC,True,quiet=True) == full_set
+            assert C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=True,quiet=True) == full_set
         # with at least one allowed 0-to-1 change but no self-conflict - no conflicts
         for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
             assert C.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
             assert C.clonality_conflict_check(NC,False,quiet=True) == False 
             assert C.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == full_set
-            assert C.clonality_grow_no_conflict_subset(NC,False,quiet=True) == full_set
+            assert C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True) == full_set
         # with at least one allowed 0-to-1 change and self-conflict on - conflicts!
         for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
             conflicts = set([(full_set,b11,full_set,'self',NC)])
             assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
             assert C.clonality_conflict_check(NC,True,quiet=True) == True 
             assert C.clonality_obvious_no_conflict_subset(NC,True,quiet=True) == set()
-            assert len(C.clonality_grow_no_conflict_subset(NC,True,quiet=True)) == 1
+            assert len(C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=True,quiet=True)) == 1
 
     def test__no_self_conflicts__allowed_changes_nonzero__1(self):
         """ Test cases with 4-5-bit numbers that show conflicts with nonzero allowed changes only; self-conflicts ignored.
-        I've already tested count_self_conflict and remove_all_zero_codeword, so using False for both here."""
+        I've already tested count_self_conflicts and remove_all_zero_codeword, so using False for both here."""
         # defining the binary codewords so I can use them to check that the results are right:
         #   since we're not looking at self-conflicts here, need at least 3 different codewords;
         #   since we're not interested in cases where 0 changes already give a conflict, we can't use 2-bit numbers. 
@@ -1065,12 +1070,13 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         #  and growing the subset until a first conflict is met gives a set of any two codewords.
         for NC in [0,(0,0),(1,0),(2,0),(9,0),1,(1,1),4,(3,3),5,10]:
             assert D.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == set()
-            assert len(D.clonality_grow_no_conflict_subset(NC,False,quiet=True)) == 2
+            assert len(D.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True)) == 2
             # giving D.clonality_grow_no_conflict_subset a starting_subset of two codewords gives same subset as result
             for subset in itertools.combinations(D.codewords,2):
-                assert D.clonality_grow_no_conflict_subset(NC,False, starting_subset=subset, quiet=True) == subset
+                assert D.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False, 
+                                                           starting_subset=subset, quiet=True) == set(subset)
             # giving it a starting_subset of all thee codewords gives error due to conflicts in starting_subset
-            self.assertRaises(BinaryCodeError,D.clonality_grow_no_conflict_subset,NC,False, 
+            self.assertRaises(BinaryCodeError,D.clonality_grow_no_conflict_subset,NC,count_self_conflicts=False, 
                               starting_subset=D.codewords, quiet=True)
         E = Binary_code(4,[b0001,b0010,b0011,b1111])
         # note that if we add b1111 to the set, with no allowed 1->0 changes that doesn't conflict with anything
@@ -1078,7 +1084,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert E.clonality_conflict_check(NC,False,quiet=True) == True 
             assert E.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == set([b1111])
             # and the grown subset can contain b1111 and any of the other two.
-            grown_subset = E.clonality_grow_no_conflict_subset(NC,False,quiet=True)
+            grown_subset = E.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True)
             assert (b1111 in grown_subset) and len(grown_subset)==3
         ### 0001, 0010 -> 0011; expect a clonality conflict with 0111 with 1 allowed 1->0 change
         F = Binary_code(4,[b0001,b0010,b0111])
@@ -1088,7 +1094,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert F.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set},set())
             assert F.clonality_conflict_check(NC,False,quiet=True) == False 
             assert F.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == full_set
-            assert F.clonality_grow_no_conflict_subset(NC,False,quiet=True) == full_set
+            assert F.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True) == full_set
         # with one or more 1->0 changes allowed, there's one conflict (0001+0010=0011 with 0111)
         for NC in [1,(1,0),(2,0),(1,1)]:
             conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b0111]),'',NC)])
@@ -1102,7 +1108,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         #  and the grown subset can contain any two of the three conflict-codewords
         for NC in [1,(1,0),(2,0),(1,1),2,(1,2),(2,2),9,(9,9)]:
             assert F.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == set()
-            assert len(F.clonality_grow_no_conflict_subset(NC,False,quiet=True)) == 2
+            assert len(F.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True)) == 2
         ### 0001, 0010 -> 0011; expect a clonality conflict with 1111 with 2 allowed 1->0 changes
         G = Binary_code(4,[b0001,b0010,b1111])
         full_set = frozenset([b0001,b0010,b1111])
@@ -1111,7 +1117,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert G.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set},set())
             assert G.clonality_conflict_check(NC,False,quiet=True) == False 
             assert G.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == full_set
-            assert G.clonality_grow_no_conflict_subset(NC,False,quiet=True) == full_set
+            assert G.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True) == full_set
         # with two or more 1->0 changes allowed, there's one conflict (0001+0010=0011 with 1111)
         for NC in [2,(2,0),(2,1),(2,2),(9,0),(9,2)]:
             conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b1111]),'',NC)])
@@ -1129,7 +1135,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
 
     def test__no_self_conflicts__allowed_changes_nonzero__2(self):
         """ Test cases with 3-bit numbers that show conflicts with nonzero allowed changes only; self-conflicts ignored.
-        I've already tested count_self_conflict and remove_all_zero_codeword, so using False for both here."""
+        I've already tested count_self_conflicts and remove_all_zero_codeword, so using False for both here."""
         # derived from old version, with return_conflict_details=False 
         # defining the binary codewords so I can use them to check that the results are right:
         #   since we're not looking at self-conflicts here, need at least 3 different codewords;
@@ -1156,10 +1162,16 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             if 0 in result:     expected_obvious_subset = result[0]
             else:               expected_obvious_subset = set()
             assert code.clonality_obvious_no_conflict_subset(N_changes,False,quiet=True) == expected_obvious_subset
-            assert len(code.clonality_grow_no_conflict_subset(N_changes,False,quiet=True)) == no_conflict_subset_len
+            assert len(code.clonality_grow_no_conflict_subset(N_changes,count_self_conflicts=False,
+                                                                              quiet=True)) == no_conflict_subset_len
             if b111 in code.codewords and no_conflict_subset_len==3:
-                assert len(code.clonality_grow_no_conflict_subset(N_changes,False,quiet=True,
-                                                                  starting_subset=set([b111]))) == 2
+                assert len(code.clonality_grow_no_conflict_subset(N_changes,count_self_conflicts=False,
+                                                                  quiet=True, starting_subset=set([b111]))) == 2
+
+    # TODO add clonality_grow_no_conflict_subset N_repeats argument to unit-tests!
+    # TODO rewrite unit-tests to take advantage of N_repeats instead of repeating this multiple times themselves!
+    # TODO write unit-tests to make sure N_repeats actually finds MULTIPLE DIFFERENT solutions if they exist!!
+    # TODO add clonality_grow_no_conflict_subset more_random argument to unit-tests!
 
     def test__clonality_grow_no_conflict_subset(self):
         """ Extra clonality_grow_no_conflict_subset checks with larger real codes."""
@@ -1171,7 +1183,8 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         NC_full_list = [0,(0,0),(0,1),1,(1,0),(2,0),(1,1),2,(1,2),3]
         for code, NC_list, addition_repeats in [(B3,NC_full_list,10), (B4,NC_full_list,10), (B11,NC_full_list[:4],2)]:
             for N_changes in NC_list:
-                no_conflict_subset = code.clonality_grow_no_conflict_subset(N_changes, False, True, quiet=True)
+                no_conflict_subset = code.clonality_grow_no_conflict_subset(N_changes, count_self_conflicts=False, 
+                                                                            remove_all_zero_codeword=True, quiet=True)
                 no_conflict_subcode = Binary_code(code.length, no_conflict_subset, method='list')
                 # make sure the generated subset is in fact no-conflict
                 assert no_conflict_subcode.clonality_conflict_check(N_changes,False,quiet=True) == False
@@ -1189,19 +1202,22 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
         # no error if the starting subset is part of the code; error otherwise
         B = Binary_code(3,[b110,b101,b011,b000])
-        B.clonality_grow_no_conflict_subset(0, False, True, starting_subset=set([b011]), quiet=True)
-        self.assertRaises(BinaryCodeError, B.clonality_grow_no_conflict_subset, 0, False, True, 
-                          starting_subset=set([b001]), quiet=True)
+        B.clonality_grow_no_conflict_subset(0, count_self_conflicts=False, remove_all_zero_codeword=True, 
+                                            starting_subset=set([b011]), quiet=True)
+        self.assertRaises(BinaryCodeError, B.clonality_grow_no_conflict_subset, 0, count_self_conflicts=False, 
+                          remove_all_zero_codeword=True, starting_subset=set([b001]), quiet=True)
         # no error if the starting subset is conflict-free with 1 change; error otherwise
         D = Binary_code(3,[b110,b100,b111,b010])
-        B.clonality_grow_no_conflict_subset(1, False, True, starting_subset=set([b110,b101]), quiet=True)
-        self.assertRaises(BinaryCodeError, D.clonality_grow_no_conflict_subset, 1, False, True, 
-                          starting_subset=set([b110,b101]), quiet=True)
+        B.clonality_grow_no_conflict_subset(1, count_self_conflicts=False, remove_all_zero_codeword=True, 
+                                            starting_subset=set([b110,b101]), quiet=True)
+        self.assertRaises(BinaryCodeError, D.clonality_grow_no_conflict_subset, 1, count_self_conflicts=False, 
+                          remove_all_zero_codeword=True, starting_subset=set([b110,b101]), quiet=True)
         # including and not removing the all-zero codeword: error if counting self-conflicts, no error otherwise.
         B = Binary_code(3,[b110,b101,b011,b000])
-        B.clonality_grow_no_conflict_subset(1, False, False, starting_subset=set([b110,b000]), quiet=True)
-        self.assertRaises(BinaryCodeError, D.clonality_grow_no_conflict_subset, 1, True, False, 
-                          starting_subset=set([b110,b000]), quiet=True)
+        B.clonality_grow_no_conflict_subset(1, count_self_conflicts=False, remove_all_zero_codeword=False, 
+                                            starting_subset=set([b110,b000]), quiet=True)
+        self.assertRaises(BinaryCodeError, D.clonality_grow_no_conflict_subset, 1, count_self_conflicts=True, 
+                          remove_all_zero_codeword=False, starting_subset=set([b110,b000]), quiet=True)
 
 
 if __name__=='__main__':
