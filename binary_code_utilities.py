@@ -500,12 +500,14 @@ class Binary_code:
         except KeyError:    return set()
 
     def clonality_grow_no_conflict_subset(self, N_allowed_changes=(0,0), count_self_conflict=False, 
-                                  remove_all_zero_codeword=False, starting_subset=None, quiet=False):
+                      remove_all_zero_codeword=False, starting_subset=None, N_repeats=1, more_random=False, quiet=False):
         """ Imperfect solution of the clonality problem, as in Goodman2009: use clonality_count_conflicts to figure out 
         which codewords participate in how many conflicts, then take the 0-conflict set and try adding more codewords to it
          (lower-conflict-count ones first) until a conflict is caused. Return largest found no-conflict set that way.
         Optionally take a starting_subset of no-conflict codewords and try adding to that instead of starting from scratch.
         See clonality_count_conflicts docstring for info on the remaining arguments."""
+        # TODO rewrite docstring to reflect new stuff!
+        ### First get all the detailed conflict-count info
         conflict_count_to_codeword_set, conflict_detail_tuples = self.clonality_count_conflicts(N_allowed_changes, 
                                                                             count_self_conflict, remove_all_zero_codeword, 
                                                                             return_conflict_details=True, quiet=quiet)
@@ -537,32 +539,68 @@ class Binary_code:
         def count_conflicts_codeword_and_set(codeword_conflict_pairs, codeword_set):
             return len([pair for pair in codeword_conflict_pairs if pair.issubset(codeword_set)])
 
-        # set the starting subset (empty unless provided); make sure it's conflict-free and part of the current code
-        current_subset = set() if starting_subset is None else starting_subset
+        ### set the starting subset (empty unless provided); make sure it's conflict-free and part of the current code
+        starting_subset = set() if starting_subset is None else starting_subset
+        # if a code instead of a set of codewords was given as starting_subset, just take its codewords, that's fine
+        if isinstance(starting_subset, Binary_code):    starting_subset = starting_subset.codewords
         if remove_all_zero_codeword:
-            if '0'*self.length in current_subset:   current_subset.remove('0'*self.length)
-        for codeword in current_subset:
-            if count_conflicts_codeword_and_set(codeword_to_conflict_pairs[codeword], current_subset) > 0:
+            if '0'*self.length in starting_subset:   starting_subset.remove('0'*self.length)
+        for codeword in starting_subset:
+            if count_conflicts_codeword_and_set(codeword_to_conflict_pairs[codeword], starting_subset) > 0:
                raise BinaryCodeError("starting_subset provided to clonality_grow_no_conflict_subset is not conflict-free!")
-        if not all([codeword in self.codewords for codeword in current_subset]):
+        if not all([codeword in self.codewords for codeword in starting_subset]):
             raise BinaryCodeError("starting_subset provided to clonality_grow_no_conflict_subset is not part of the code!")
 
-        # what order all the codewords should be attempted-added in: based on conflict-count, random within that; 
-        #  ignore codewords that are already in current_subset
-        codewords_to_add = []
-        for ccount, cwset in sorted(conflict_count_to_codeword_set.iteritems()):
-            cwlist = [c for c in cwset if c not in current_subset]
-            random.shuffle(cwlist)
-            codewords_to_add += cwlist
+        ### repeat randomly generating an order and making a subset multiple times, return the best (and a trial summary)
+        best_subset = set()
+        all_subset_lengths = []
+        all_subsets = set()
+        codeword_addition_orders = set()
+        for i in range(N_repeats):
+            ### what order all the codewords should be attempted-added in: (ignore codewords already in starting_subset)
+            # default: based on conflict-count per codeword (lowest first), random within that
+            if not more_random:
+                codewords_to_add = []
+                for ccount, cwset in sorted(conflict_count_to_codeword_set.iteritems()):
+                    cwlist = [c for c in cwset if c not in starting_subset]
+                    random.shuffle(cwlist)
+                    codewords_to_add += cwlist
+            # if more_random: completely random without regard to conflict-count
+            else:
+                codewords_to_add = [c for c in self.codewords if c not in starting_subset]
+                random.shuffle(codewords_to_add)
+            assert len(codewords_to_add) + len(starting_subset) == len(self.codewords)
+            # keep track of all the codeword orders to make sure they're not always the same!
+            codeword_addition_orders.add(tuple(codewords_to_add))
 
-        # go over the codewords_to_add list: if the current codeword has no conflicts with current_subset, add it, 
-        #  otherwise skip and go on to the next one.
-        for codeword in codewords_to_add:
-            if count_conflicts_codeword_and_set(codeword_to_conflict_pairs[codeword], current_subset) == 0:
-                current_subset.add(codeword)
+            # go over the codewords_to_add list: if the current codeword has no conflicts with current_subset, add it, 
+            #  otherwise skip and go on to the next one.
+            # using set() here so that current_subset is a real copy of starting_subset, not two labels for one object!
+            current_subset = set(starting_subset)   
+            for codeword in codewords_to_add:
+                assert codeword not in current_subset, "Error: shouldn't be adding an already present codeword!"
+                if count_conflicts_codeword_and_set(codeword_to_conflict_pairs[codeword], current_subset) == 0:
+                    current_subset.add(codeword)
 
-        return current_subset
-        # MAYBE-TODO add an iterations argument to do this multiple times (starting from the codewords_to_add definition) and pick the best result, since randomness is involved
+            all_subset_lengths.append(len(current_subset))
+            all_subsets.add(frozenset(current_subset))
+            if len(current_subset) > len(best_subset):
+                best_subset = current_subset
+
+        assert len(best_subset) == max(all_subset_lengths)
+        if not quiet and N_repeats>1 and len(codeword_addition_orders)==1:
+            print("Warning: Only 1 random order of %s elements in %s repeats - randomness very suspicious!"
+                  %(len(codewords_to_add), N_repeats))
+        if not quiet and N_repeats>1 and len(all_subsets)==1:
+            print("Warning: The same subset always found in %s repeats - something may be wrong!"%N_repeats)
+
+        if N_repeats>1:     return best_subset, all_subset_lengths
+        else:               return best_subset
+
+        # TODO add N_repeats to unit-tests!
+        # TODO rewrite the unit-tests to deal with the new return value (maybe only return all_subset_lengths if N_repeats>1, or make an option for whether to return it or not?
+        # TODO rewrite unit-tests to take advantage of N_repeats instead of repeating this multiple times themselves!
+        # TODO add more_random to unit-tests!
 
     # MAYBE-TODO implement some other options for reducing the set to one without clonality issues?
     #  * Any other sensible algorithms for doing this?  See Clonality section of ../notes_combinatorial_pooling_theory.txt - I had some new ideas...
