@@ -974,8 +974,9 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
                 assert A.clonality_count_conflicts(N_changes,SC,RZ,return_conflict_details=True,quiet=True) == ({},set())
                 assert A.clonality_conflict_check(N_changes,SC,RZ,quiet=True) == False 
                 assert A.clonality_obvious_no_conflict_subset(N_changes,SC,RZ,quiet=True) == set()
-                assert A.clonality_grow_no_conflict_subset(N_changes, starting_subset=None, more_random=False,
-                                               count_self_conflicts=SC,remove_all_zero_codeword=RZ,quiet=True) == set()
+                for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                    assert A.clonality_grow_no_conflict_subset(N_changes, starting_subset=None, more_random=more_random,
+                           N_repeats=N_repeats, count_self_conflicts=SC,remove_all_zero_codeword=RZ,quiet=True) == set()
 
     def test__count_self_conflicts__and__remove_all_zero_codeword(self):
         """ testing that count_self_conflicts and remove_all_zero_codeword work, with N_allowed_changes 0."""
@@ -990,8 +991,9 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert B.clonality_conflict_check(0,False,RZ,quiet=True) == False 
             assert B.clonality_obvious_no_conflict_subset(0,False,RZ,quiet=True) == out_set
             for starting_set in [None, out_set, set([b110]), set([b101])]:
-                assert B.clonality_grow_no_conflict_subset(0,starting_subset=starting_set, 
-                                                           remove_all_zero_codeword=RZ,quiet=True) == out_set
+                for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                    assert B.clonality_grow_no_conflict_subset(0,starting_subset=starting_set, more_random=more_random, 
+                                                   N_repeats=N_repeats, remove_all_zero_codeword=RZ,quiet=True) == out_set
         # with self-conflict counted, and with all-zero keyword - clonality conflicts
         B = Binary_code(3,[b110,b101,b011,b000])    # need to re-make it because the all-zero codeword was removed above
         conflicts = set([(frozenset([b000,x]),x,frozenset([x]),'self',0) for x in set_no_zero])
@@ -999,14 +1001,20 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         assert B.clonality_count_conflicts(0,True,False,return_conflict_details=True,quiet=True) == (result,conflicts)
         assert B.clonality_conflict_check(0,True,False,quiet=True) == True 
         assert B.clonality_obvious_no_conflict_subset(0,True,False,quiet=True) == set()
-        assert B.clonality_grow_no_conflict_subset(0,count_self_conflicts=True,
-                                                   remove_all_zero_codeword=False, quiet=True) == set_no_zero
+        for N_repeats in [1,5,30]:
+            assert B.clonality_grow_no_conflict_subset(0,count_self_conflicts=True, more_random=False, 
+                                       N_repeats=N_repeats, remove_all_zero_codeword=False, quiet=True) == set_no_zero
+            result_with_more_random = B.clonality_grow_no_conflict_subset(0,count_self_conflicts=True, more_random=False, 
+                                       N_repeats=N_repeats, remove_all_zero_codeword=False, quiet=True)
+            assert result_with_more_random==set_no_zero or len(result_with_more_random)==2
+
         # with self-conflict counted, but removing all-zero keyword - no clonality conflicts
         assert B.clonality_count_conflicts(0,True,True,return_conflict_details=True,quiet=True) == ({0:set_no_zero}, set())
         assert B.clonality_conflict_check(0,True,True,quiet=True) == False 
         assert B.clonality_obvious_no_conflict_subset(0,True,True,quiet=True) == set_no_zero
-        assert B.clonality_grow_no_conflict_subset(0,count_self_conflicts=True,
-                                                   remove_all_zero_codeword=True,quiet=True) == set_no_zero
+        for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+            assert B.clonality_grow_no_conflict_subset(0,count_self_conflicts=True, more_random=more_random,
+                                           N_repeats=N_repeats, remove_all_zero_codeword=True,quiet=True) == set_no_zero
 
     def test__count_self_conflicts__allowed_changes_zero(self):
         """ testing count_self_conflicts with N_allowed_changes 0 but without involving the all-zero codeword."""
@@ -1018,13 +1026,17 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         assert C.clonality_count_conflicts(0,False,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
         assert C.clonality_conflict_check(0,False,quiet=True) == False 
         assert C.clonality_obvious_no_conflict_subset(0,False,quiet=True) == full_set
-        assert C.clonality_grow_no_conflict_subset(0,count_self_conflicts=False,quiet=True) == full_set
+        for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+            assert C.clonality_grow_no_conflict_subset(0,more_random=more_random,N_repeats=N_repeats,
+                                                       count_self_conflicts=False,quiet=True) == full_set
         # with self-conflict on - conflicts!
         conflicts = set([(full_set,b11,frozenset([b11]),'self',0)])
         assert C.clonality_count_conflicts(0,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
         assert C.clonality_conflict_check(0,True,quiet=True) == True 
         assert C.clonality_obvious_no_conflict_subset(0,True,quiet=True) == set()
-        assert len(C.clonality_grow_no_conflict_subset(0,count_self_conflicts=True,quiet=True)) == 1
+        for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+            assert len(C.clonality_grow_no_conflict_subset(0,count_self_conflicts=True,
+                                                           more_random=more_random,N_repeats=N_repeats,quiet=True)) == 1
 
     def test__count_self_conflicts__allowed_changes_nonzero(self):
         """ testing count_self_conflicts with N_allowed_changes other than 0; remove_all_zero_codeword not involved."""
@@ -1037,20 +1049,26 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
             assert C.clonality_conflict_check(NC,True,quiet=True) == False 
             assert C.clonality_obvious_no_conflict_subset(NC,True,quiet=True) == full_set
-            assert C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=True,quiet=True) == full_set
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                assert C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=True,
+                                                   more_random=more_random,N_repeats=N_repeats, quiet=True) == full_set
         # with at least one allowed 0-to-1 change but no self-conflict - no conflicts
         for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
             assert C.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set}, set())
             assert C.clonality_conflict_check(NC,False,quiet=True) == False 
             assert C.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == full_set
-            assert C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True) == full_set
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                assert C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,
+                                                   more_random=more_random,N_repeats=N_repeats, quiet=True) == full_set
         # with at least one allowed 0-to-1 change and self-conflict on - conflicts!
         for NC in [1,2,10,(0,1),(0,2),(0,9),(1,1),(2,2),(9,9)]:
             conflicts = set([(full_set,b11,full_set,'self',NC)])
             assert C.clonality_count_conflicts(NC,True,return_conflict_details=True,quiet=True) == ({1:full_set},conflicts)
             assert C.clonality_conflict_check(NC,True,quiet=True) == True 
             assert C.clonality_obvious_no_conflict_subset(NC,True,quiet=True) == set()
-            assert len(C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=True,quiet=True)) == 1
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                assert len(C.clonality_grow_no_conflict_subset(NC,count_self_conflicts=True,
+                                                           more_random=more_random,N_repeats=N_repeats, quiet=True)) == 1
 
     def test__no_self_conflicts__allowed_changes_nonzero__1(self):
         """ Test cases with 4-5-bit numbers that show conflicts with nonzero allowed changes only; self-conflicts ignored.
@@ -1076,21 +1094,27 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         #  and growing the subset until a first conflict is met gives a set of any two codewords.
         for NC in [0,(0,0),(1,0),(2,0),(9,0),1,(1,1),4,(3,3),5,10]:
             assert D.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == set()
-            assert len(D.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True)) == 2
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                assert len(D.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,
+                                                           more_random=more_random,N_repeats=N_repeats, quiet=True)) == 2
             # giving D.clonality_grow_no_conflict_subset a starting_subset of two codewords gives same subset as result
             for subset in itertools.combinations(D.codewords,2):
-                assert D.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False, 
-                                                           starting_subset=subset, quiet=True) == set(subset)
+                for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                    assert D.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False, starting_subset=subset, 
+                                                   more_random=more_random,N_repeats=N_repeats, quiet=True) == set(subset)
             # giving it a starting_subset of all thee codewords gives error due to conflicts in starting_subset
-            self.assertRaises(BinaryCodeError,D.clonality_grow_no_conflict_subset,NC,count_self_conflicts=False, 
-                              starting_subset=D.codewords, quiet=True)
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                self.assertRaises(BinaryCodeError,D.clonality_grow_no_conflict_subset,NC,count_self_conflicts=False, 
+                              starting_subset=D.codewords, more_random=more_random,N_repeats=N_repeats, quiet=True)
         E = Binary_code(4,[b0001,b0010,b0011,b1111])
         # note that if we add b1111 to the set, with no allowed 1->0 changes that doesn't conflict with anything
         for NC in [0,(0,0),(1,0)]:
             assert E.clonality_conflict_check(NC,False,quiet=True) == True 
             assert E.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == set([b1111])
             # and the grown subset can contain b1111 and any of the other two.
-            grown_subset = E.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True)
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                grown_subset = E.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,
+                                                               more_random=more_random,N_repeats=N_repeats, quiet=True)
             assert (b1111 in grown_subset) and len(grown_subset)==3
         ### 0001, 0010 -> 0011; expect a clonality conflict with 0111 with 1 allowed 1->0 change
         F = Binary_code(4,[b0001,b0010,b0111])
@@ -1100,7 +1124,9 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert F.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set},set())
             assert F.clonality_conflict_check(NC,False,quiet=True) == False 
             assert F.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == full_set
-            assert F.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True) == full_set
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                assert F.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,
+                                                   more_random=more_random,N_repeats=N_repeats, quiet=True) == full_set
         # with one or more 1->0 changes allowed, there's one conflict (0001+0010=0011 with 0111)
         for NC in [1,(1,0),(2,0),(1,1)]:
             conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b0111]),'',NC)])
@@ -1114,7 +1140,9 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         #  and the grown subset can contain any two of the three conflict-codewords
         for NC in [1,(1,0),(2,0),(1,1),2,(1,2),(2,2),9,(9,9)]:
             assert F.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == set()
-            assert len(F.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True)) == 2
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                assert len(F.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,
+                                                           more_random=more_random,N_repeats=N_repeats, quiet=True)) == 2
         ### 0001, 0010 -> 0011; expect a clonality conflict with 1111 with 2 allowed 1->0 changes
         G = Binary_code(4,[b0001,b0010,b1111])
         full_set = frozenset([b0001,b0010,b1111])
@@ -1123,7 +1151,9 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             assert G.clonality_count_conflicts(NC,False,return_conflict_details=True,quiet=True) == ({0:full_set},set())
             assert G.clonality_conflict_check(NC,False,quiet=True) == False 
             assert G.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == full_set
-            assert G.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,quiet=True) == full_set
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                assert G.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,
+                                                   more_random=more_random,N_repeats=N_repeats, quiet=True) == full_set
         # with two or more 1->0 changes allowed, there's one conflict (0001+0010=0011 with 1111)
         for NC in [2,(2,0),(2,1),(2,2),(9,0),(9,2)]:
             conflicts = set([(frozenset([b0001,b0010]),b0011,frozenset([b1111]),'',NC)])
@@ -1137,6 +1167,9 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         #  and the grown subset can contain any two of the three conflict-codewords
         for NC in [2,(2,0),(2,1),(2,2),(9,0),(9,2),3,(2,3),9,(9,9)]:
             assert G.clonality_obvious_no_conflict_subset(NC,False,quiet=True) == set()
+            for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                assert len(G.clonality_grow_no_conflict_subset(NC,count_self_conflicts=False,
+                                                   more_random=more_random,N_repeats=N_repeats, quiet=True)) == 2
         # see experiments/generating_library/1110_clonality_check_troubleshooting/notes.txt for more tests/notes
 
     def test__no_self_conflicts__allowed_changes_nonzero__2(self):
@@ -1150,17 +1183,17 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
         [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
         data_and_outputs = []
         D = Binary_code(3,[b110,b101,b011])
-        data_and_outputs.append((D,0, {0:set([b110,b101,b011])}, 3 ))
-        data_and_outputs.append((D,1, {3:set([b110,b101,b011])}, 2 ))
-        data_and_outputs.append((D,(0,0), {0:set([b110,b101,b011])}, 3 ))
-        data_and_outputs.append((D,(1,0), {0:set([b110,b101,b011])}, 3 ))
-        data_and_outputs.append((D,(0,1), {3:set([b110,b101,b011])}, 2 ))
+        data_and_outputs.append((D,0, {0:set([b110,b101,b011])}, (3,(3,3)) ))
+        data_and_outputs.append((D,1, {3:set([b110,b101,b011])}, (2,(2,2)) ))
+        data_and_outputs.append((D,(0,0), {0:set([b110,b101,b011])}, (3,(3,3)) ))
+        data_and_outputs.append((D,(1,0), {0:set([b110,b101,b011])}, (3,(3,3)) ))
+        data_and_outputs.append((D,(0,1), {3:set([b110,b101,b011])}, (2,(2,2)) ))
         F = Binary_code(3,[b001,b010,b100,b111])
-        data_and_outputs.append((F,0, {0:set([b001,b010,b100,b111])}, 4 ))
-        data_and_outputs.append((F,1, {2:set([b001,b010,b100]),3:set([b111])}, 3 ))
-        data_and_outputs.append((F,(0,0), {0:set([b001,b010,b100,b111])}, 4 ))
-        data_and_outputs.append((F,(1,0), {2:set([b001,b010,b100]),3:set([b111])}, 3 ))
-        data_and_outputs.append((F,(0,1), {0:set([b001,b010,b100,b111])}, 4 ))
+        data_and_outputs.append((F,0, {0:set([b001,b010,b100,b111])}, (4,(4,4)) ))
+        data_and_outputs.append((F,1, {2:set([b001,b010,b100]),3:set([b111])}, (3,(2,3)) ))
+        data_and_outputs.append((F,(0,0), {0:set([b001,b010,b100,b111])}, (4,(4,4)) ))
+        data_and_outputs.append((F,(1,0), {2:set([b001,b010,b100]),3:set([b111])}, (3,(2,3)) ))
+        data_and_outputs.append((F,(0,1), {0:set([b001,b010,b100,b111])}, (4,(4,4)) ))
         for (code,N_changes,result,no_conflict_subset_len) in data_and_outputs:
             assert code.clonality_count_conflicts(N_changes,False,return_conflict_details=False,quiet=True) == result 
             expected_check_outcome = (False if result.keys()==[0] else True)
@@ -1168,15 +1201,23 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             if 0 in result:     expected_obvious_subset = result[0]
             else:               expected_obvious_subset = set()
             assert code.clonality_obvious_no_conflict_subset(N_changes,False,quiet=True) == expected_obvious_subset
-            assert len(code.clonality_grow_no_conflict_subset(N_changes,count_self_conflicts=False,
-                                                                              quiet=True)) == no_conflict_subset_len
-            if b111 in code.codewords and no_conflict_subset_len==3:
+            # compare the clonality_grow_no_conflict_subset sizes with the precomputed values in the original dataset
+            #  (with more_random=False the sizes are always the same; with more_random=True the outcome sometimes depends
+            #   on whether b111 is tried first or not, so I gave the min and max) 
+            for N_repeats in [1,5,30]:
                 assert len(code.clonality_grow_no_conflict_subset(N_changes,count_self_conflicts=False,
-                                                                  quiet=True, starting_subset=set([b111]))) == 2
+                                      more_random=False,N_repeats=N_repeats, quiet=True)) == no_conflict_subset_len[0]
+                subset_with_more_random = code.clonality_grow_no_conflict_subset(N_changes,count_self_conflicts=False,
+                                                                      more_random=True,N_repeats=N_repeats, quiet=True)
+                assert no_conflict_subset_len[1][0] <= len(subset_with_more_random) <= no_conflict_subset_len[1][1]
+            # in the two cases with b111 and a non-obvious solution, if we start with b111 in starting_subset, 
+            #  the result will have only 2 codewords regardless of more_random
+            if b111 in code.codewords and no_conflict_subset_len[0]==3:
+                for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+                    assert len(code.clonality_grow_no_conflict_subset(N_changes,count_self_conflicts=False,
+                               more_random=more_random,N_repeats=N_repeats, quiet=True, starting_subset=set([b111]))) == 2
 
-    # TODO add clonality_grow_no_conflict_subset N_repeats argument to unit-tests!
-    # TODO write unit-tests to make sure N_repeats actually finds MULTIPLE DIFFERENT solutions if they exist!!
-    # TODO add clonality_grow_no_conflict_subset more_random argument to unit-tests!  In what cases would it actually make a difference??  Should really try and find or make up a case like that...  One of the small ones above might do.
+    # TODO add simple unit-test for clonality_grow_no_conflict_subset N_repeats argument return_repeat_summary=True: check that N_repeats returns a list of the right length and that the values in it are different when they should be and all the same when they should be.
 
     def test__clonality_grow_no_conflict_subset(self):
         """ Extra clonality_grow_no_conflict_subset checks with larger real codes."""
@@ -1186,43 +1227,127 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             B11 = Binary_code(11,val='error-correcting_codes/11-7-3_generator',method='matrixfile',expected_count=2**7)
         except IOError: sys.exit("Couldn't find input file in error-correcting_codes/ folder to run clonality test.")
         NC_full_list = [0,(0,0),(0,1),1,(1,0),(2,0),(1,1),2,(1,2),3]
-        for code, NC_list, addition_tries in [(B3,NC_full_list,10), (B4,NC_full_list,10), (B11,NC_full_list[:4],2)]:
+        NC_short_list = [0,(0,1),1]
+        for code, slow_test in [(B3,False), (B4,False), (B11,True)]:
+            # how many NC values and other things to try depends on how slow the test is - B11 takes several seconds
+            if slow_test:
+                NC_list, addition_tries, random_and_repeats = NC_short_list, 2, [(False,30),(True,1)]
+            else:
+                NC_list, addition_tries, random_and_repeats = NC_full_list, 10, itertools.product([False,True],[1,5,30])
+            # actually do the test with the given settings
             for N_changes in NC_list:
-                no_conflict_subset = code.clonality_grow_no_conflict_subset(N_changes, count_self_conflicts=False, 
-                                                                            remove_all_zero_codeword=True, quiet=True)
-                no_conflict_subcode = Binary_code(code.length, no_conflict_subset, method='list')
-                # make sure the generated subset is in fact no-conflict
-                assert no_conflict_subcode.clonality_conflict_check(N_changes,False,quiet=True) == False
-                # make sure no codeword could be added to the generated subset without introducing conflict
-                #  (only try out a few, it'd take forever otherwise!)
-                for i in range(addition_tries):
-                    additional_codeword = random.choice(list(code.codewords - no_conflict_subset))
-                    new_conflict_subset = no_conflict_subset | set([additional_codeword])
-                    new_conflict_subcode = Binary_code(code.length, new_conflict_subset, method='list')
-                    assert new_conflict_subcode.clonality_conflict_check(N_changes,False,quiet=True) == True
+                for more_random, N_repeats in random_and_repeats:
+                    no_conflict_subset = code.clonality_grow_no_conflict_subset(N_changes, count_self_conflicts=False, 
+                                                                                remove_all_zero_codeword=True, quiet=True)
+                    no_conflict_subcode = Binary_code(code.length, no_conflict_subset, method='list')
+                    # make sure the generated subset is in fact no-conflict
+                    assert no_conflict_subcode.clonality_conflict_check(N_changes,False,quiet=True) == False
+                    # make sure no codeword could be added to the generated subset without introducing conflict
+                    #  (only try out a few, it'd take forever otherwise!)
+                    for i in range(addition_tries):
+                        additional_codeword = random.choice(list(code.codewords - no_conflict_subset))
+                        new_conflict_subset = no_conflict_subset | set([additional_codeword])
+                        new_conflict_subcode = Binary_code(code.length, new_conflict_subset, method='list')
+                        assert new_conflict_subcode.clonality_conflict_check(N_changes,False,quiet=True) == True
+        # TODO add some specific cases with more_random on and off and N_repeats to the function above?
+        # (yes, this isn't a perfect test, since it's based on previous output functions rather than predicted by hand)
+        # HERE'S SOME DATA ON APPROXIMATELY WHAT TO EXPECT, FROM INTERACTIVE PYTHON SHELL:
+		# >>> import binary_code_utilities
+		# >>> B3 = binary_code_utilities.Binary_code(3,val='error-correcting_codes/3-3-1_list',method='listfile',expected_count=2**3)
+		# >>> B4 = binary_code_utilities.Binary_code(4,val='error-correcting_codes/4-3-2_list',method='listfile',expected_count=2**3)
+		# >>> B11 = binary_code_utilities.Binary_code(11,val='error-correcting_codes/11-7-3_generator',method='matrixfile',expected_count=2**7)
+		# >>> NC_full_list = [0,(0,0),(0,1),1,(1,0),(2,0),(1,1),2,(1,2),3]
+		# >>> for codename,code in [("B3",B3), ("B4",B4), ("B11",B11)]:
+		# ...  for NC in NC_full_list:
+		# ...   for more_random in False,True:
+		# ...    subset, lengths = code.clonality_grow_no_conflict_subset(NC, more_random=more_random, N_repeats=50, return_repeat_summary=True, remove_all_zero_codeword=True, quiet=True)
+		# ...    print "Code %s, allowed changes %s, more_random %s: best subset length %s, all lengths %s"%(codename, NC, more_random, len(subset), set(lengths))
+		# ...
+		# Code B3, allowed changes 0, more_random False: best subset length 4, all lengths set([4])
+		# Code B3, allowed changes 0, more_random True: best subset length 4, all lengths set([3, 4])
+		# Code B3, allowed changes (0, 0), more_random False: best subset length 4, all lengths set([4])
+		# Code B3, allowed changes (0, 0), more_random True: best subset length 4, all lengths set([3, 4])
+		# Code B3, allowed changes (0, 1), more_random False: best subset length 4, all lengths set([4])
+		# Code B3, allowed changes (0, 1), more_random True: best subset length 4, all lengths set([2, 3, 4])
+		# Code B3, allowed changes 1, more_random False: best subset length 3, all lengths set([3])
+		# Code B3, allowed changes 1, more_random True: best subset length 3, all lengths set([2, 3])
+		# Code B3, allowed changes (1, 0), more_random False: best subset length 3, all lengths set([3])
+		# Code B3, allowed changes (1, 0), more_random True: best subset length 4, all lengths set([2, 3, 4])
+		# Code B3, allowed changes (2, 0), more_random False: best subset length 3, all lengths set([3])
+		# Code B3, allowed changes (2, 0), more_random True: best subset length 4, all lengths set([2, 3, 4])
+		# Code B3, allowed changes (1, 1), more_random False: best subset length 3, all lengths set([3])
+		# Code B3, allowed changes (1, 1), more_random True: best subset length 3, all lengths set([2, 3])
+		# Code B3, allowed changes 2, more_random False: best subset length 3, all lengths set([3])
+		# Code B3, allowed changes 2, more_random True: best subset length 3, all lengths set([2, 3])
+		# Code B3, allowed changes (1, 2), more_random False: best subset length 2, all lengths set([2])
+		# Code B3, allowed changes (1, 2), more_random True: best subset length 2, all lengths set([2])
+		# Code B3, allowed changes 3, more_random False: best subset length 2, all lengths set([2])
+		# Code B3, allowed changes 3, more_random True: best subset length 2, all lengths set([2])
+		# Code B4, allowed changes 0, more_random False: best subset length 6, all lengths set([6])
+		# Code B4, allowed changes 0, more_random True: best subset length 6, all lengths set([4, 6])
+		# Code B4, allowed changes (0, 0), more_random False: best subset length 6, all lengths set([6])
+		# Code B4, allowed changes (0, 0), more_random True: best subset length 6, all lengths set([4, 6])
+		# Code B4, allowed changes (0, 1), more_random False: best subset length 4, all lengths set([4])
+		# Code B4, allowed changes (0, 1), more_random True: best subset length 4, all lengths set([4])
+		# Code B4, allowed changes 1, more_random False: best subset length 4, all lengths set([3, 4])
+		# Code B4, allowed changes 1, more_random True: best subset length 4, all lengths set([2, 3, 4])
+		# Code B4, allowed changes (1, 0), more_random False: best subset length 6, all lengths set([6])
+		# Code B4, allowed changes (1, 0), more_random True: best subset length 6, all lengths set([2, 6])
+		# Code B4, allowed changes (2, 0), more_random False: best subset length 6, all lengths set([6])
+		# Code B4, allowed changes (2, 0), more_random True: best subset length 6, all lengths set([2, 6])
+		# Code B4, allowed changes (1, 1), more_random False: best subset length 4, all lengths set([3, 4])
+		# Code B4, allowed changes (1, 1), more_random True: best subset length 4, all lengths set([2, 3, 4])
+		# Code B4, allowed changes 2, more_random False: best subset length 3, all lengths set([2, 3])
+		# Code B4, allowed changes 2, more_random True: best subset length 3, all lengths set([2, 3])
+		# Code B4, allowed changes (1, 2), more_random False: best subset length 2, all lengths set([2])
+		# Code B4, allowed changes (1, 2), more_random True: best subset length 2, all lengths set([2])
+		# Code B4, allowed changes 3, more_random False: best subset length 2, all lengths set([2])
+		# Code B4, allowed changes 3, more_random True: best subset length 2, all lengths set([2])
+		# Code B11, allowed changes 0, more_random False: best subset length 97, all lengths set([96, 97, 93, 94, 95])
+		# Code B11, allowed changes 0, more_random True: best subset length 93, all lengths set([67, 68, 71, 73, 74, 75, 76, 77, 78, 79, 80, 81, 83, 84, 86, 87, 88, 90, 91, 92, 93])
+		# Code B11, allowed changes (0, 0), more_random False: best subset length 98, all lengths set([96, 97, 98, 92, 94, 95])
+		# Code B11, allowed changes (0, 0), more_random True: best subset length 92, all lengths set([66, 67, 70, 73, 74, 75, 76, 78, 79, 80, 82, 83, 84, 85, 86, 87, 88, 89, 90, 92, 63])
+		# Code B11, allowed changes (0, 1), more_random False: best subset length 54, all lengths set([54])
+		# Code B11, allowed changes (0, 1), more_random True: best subset length 40, all lengths set([32, 33, 34, 35, 36, 37, 38, 39, 40, 25, 28, 29, 30, 31])
+		# Code B11, allowed changes 1, more_random False: best subset length 34, all lengths set([34, 30])
+		# Code B11, allowed changes 1, more_random True: best subset length 41, all lengths set([32, 33, 34, 35, 36, 38, 40, 41, 27, 29, 30, 31])
+		# Code B11, allowed changes (1, 0), more_random False: best subset length 86, all lengths set([71, 76, 79, 80, 81, 83, 84, 85, 86, 62])
+		# Code B11, allowed changes (1, 0), more_random True: best subset length 81, all lengths set([53, 56, 59, 60, 61, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 74, 75, 76, 77, 78, 79, 80, 81])
+		# Code B11, allowed changes (2, 0), more_random False: best subset length 82, all lengths set([82, 79])
+		# Code B11, allowed changes (2, 0), more_random True: best subset length 77, all lengths set([50, 51, 52, 53, 55, 56, 58, 59, 60, 61, 63, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 77])
+		# Code B11, allowed changes (1, 1), more_random False: best subset length 30, all lengths set([30])
+		# Code B11, allowed changes (1, 1), more_random True: best subset length 35, all lengths set([32, 34, 35, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29])
+		# Code B11, allowed changes 2, more_random False: best subset length 18, all lengths set([18])
+		# Code B11, allowed changes 2, more_random True: best subset length 24, all lengths set([11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
+		# Code B11, allowed changes (1, 2), more_random False: best subset length 16, all lengths set([16])
+		# Code B11, allowed changes (1, 2), more_random True: best subset length 15, all lengths set([7, 8, 9, 10, 11, 12, 13, 14, 15])
+		# Code B11, allowed changes 3, more_random False: best subset length 14, all lengths set([14])
+		# Code B11, allowed changes 3, more_random True: best subset length 12, all lengths set([7, 8, 9, 10, 11, 12])
+
 
     def test__clonality_grow_no_conflict_subset__bad_starting_subset(self):
         """ Error should be raised if starting subset isn't conflict-free or isn't part of the full code. """
         [b110,b101,b011,b000] = [Binary_codeword(x) for x in ['110','101','011','000']]
         [b001,b010,b100,b111] = [Binary_codeword(x) for x in ['001','010','100','111']]
-        # no error if the starting subset is part of the code; error otherwise
-        B = Binary_code(3,[b110,b101,b011,b000])
-        B.clonality_grow_no_conflict_subset(0, count_self_conflicts=False, remove_all_zero_codeword=True, 
-                                            starting_subset=set([b011]), quiet=True)
-        self.assertRaises(BinaryCodeError, B.clonality_grow_no_conflict_subset, 0, count_self_conflicts=False, 
-                          remove_all_zero_codeword=True, starting_subset=set([b001]), quiet=True)
-        # no error if the starting subset is conflict-free with 1 change; error otherwise
-        D = Binary_code(3,[b110,b100,b111,b010])
-        B.clonality_grow_no_conflict_subset(1, count_self_conflicts=False, remove_all_zero_codeword=True, 
-                                            starting_subset=set([b110,b101]), quiet=True)
-        self.assertRaises(BinaryCodeError, D.clonality_grow_no_conflict_subset, 1, count_self_conflicts=False, 
-                          remove_all_zero_codeword=True, starting_subset=set([b110,b101]), quiet=True)
-        # including and not removing the all-zero codeword: error if counting self-conflicts, no error otherwise.
-        B = Binary_code(3,[b110,b101,b011,b000])
-        B.clonality_grow_no_conflict_subset(1, count_self_conflicts=False, remove_all_zero_codeword=False, 
-                                            starting_subset=set([b110,b000]), quiet=True)
-        self.assertRaises(BinaryCodeError, D.clonality_grow_no_conflict_subset, 1, count_self_conflicts=True, 
-                          remove_all_zero_codeword=False, starting_subset=set([b110,b000]), quiet=True)
+        for more_random, N_repeats in itertools.product([False,True], [1,5,30]):
+            # no error if the starting subset is part of the code; error otherwise
+            B = Binary_code(3,[b110,b101,b011,b000])
+            B.clonality_grow_no_conflict_subset(0, count_self_conflicts=False, remove_all_zero_codeword=True, 
+                                                starting_subset=set([b011]), quiet=True)
+            self.assertRaises(BinaryCodeError, B.clonality_grow_no_conflict_subset, 0, count_self_conflicts=False, 
+                              remove_all_zero_codeword=True, starting_subset=set([b001]), quiet=True)
+            # no error if the starting subset is conflict-free with 1 change; error otherwise
+            D = Binary_code(3,[b110,b100,b111,b010])
+            B.clonality_grow_no_conflict_subset(1, count_self_conflicts=False, remove_all_zero_codeword=True, 
+                                                starting_subset=set([b110,b101]), quiet=True)
+            self.assertRaises(BinaryCodeError, D.clonality_grow_no_conflict_subset, 1, count_self_conflicts=False, 
+                              remove_all_zero_codeword=True, starting_subset=set([b110,b101]), quiet=True)
+            # including and not removing the all-zero codeword: error if counting self-conflicts, no error otherwise.
+            B = Binary_code(3,[b110,b101,b011,b000])
+            B.clonality_grow_no_conflict_subset(1, count_self_conflicts=False, remove_all_zero_codeword=False, 
+                                                starting_subset=set([b110,b000]), quiet=True)
+            self.assertRaises(BinaryCodeError, D.clonality_grow_no_conflict_subset, 1, count_self_conflicts=True, 
+                              remove_all_zero_codeword=False, starting_subset=set([b110,b000]), quiet=True)
 
 
 if __name__=='__main__':
