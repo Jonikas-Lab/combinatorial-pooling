@@ -591,6 +591,7 @@ class Binary_code:
             if not multiple_codeword_addition_orders and prev_codewords_addition_order!=[]:
                 if prev_codewords_addition_order != codewords_to_add:
                     multiple_codeword_addition_orders = True
+            prev_codewords_addition_order = codewords_to_add
             if not multiple_subsets and best_subset!=set() and current_subset != best_subset:
                 multiple_subsets = True
 
@@ -1174,9 +1175,8 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
                                                                   quiet=True, starting_subset=set([b111]))) == 2
 
     # TODO add clonality_grow_no_conflict_subset N_repeats argument to unit-tests!
-    # TODO rewrite unit-tests to take advantage of N_repeats instead of repeating this multiple times themselves!
     # TODO write unit-tests to make sure N_repeats actually finds MULTIPLE DIFFERENT solutions if they exist!!
-    # TODO add clonality_grow_no_conflict_subset more_random argument to unit-tests!
+    # TODO add clonality_grow_no_conflict_subset more_random argument to unit-tests!  In what cases would it actually make a difference??  Should really try and find or make up a case like that...  One of the small ones above might do.
 
     def test__clonality_grow_no_conflict_subset(self):
         """ Extra clonality_grow_no_conflict_subset checks with larger real codes."""
@@ -1186,7 +1186,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
             B11 = Binary_code(11,val='error-correcting_codes/11-7-3_generator',method='matrixfile',expected_count=2**7)
         except IOError: sys.exit("Couldn't find input file in error-correcting_codes/ folder to run clonality test.")
         NC_full_list = [0,(0,0),(0,1),1,(1,0),(2,0),(1,1),2,(1,2),3]
-        for code, NC_list, addition_repeats in [(B3,NC_full_list,10), (B4,NC_full_list,10), (B11,NC_full_list[:4],2)]:
+        for code, NC_list, addition_tries in [(B3,NC_full_list,10), (B4,NC_full_list,10), (B11,NC_full_list[:4],2)]:
             for N_changes in NC_list:
                 no_conflict_subset = code.clonality_grow_no_conflict_subset(N_changes, count_self_conflicts=False, 
                                                                             remove_all_zero_codeword=True, quiet=True)
@@ -1195,7 +1195,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
                 assert no_conflict_subcode.clonality_conflict_check(N_changes,False,quiet=True) == False
                 # make sure no codeword could be added to the generated subset without introducing conflict
                 #  (only try out a few, it'd take forever otherwise!)
-                for i in range(addition_repeats):
+                for i in range(addition_tries):
                     additional_codeword = random.choice(list(code.codewords - no_conflict_subset))
                     new_conflict_subset = no_conflict_subset | set([additional_codeword])
                     new_conflict_subcode = Binary_code(code.length, new_conflict_subset, method='list')
