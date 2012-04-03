@@ -198,7 +198,7 @@ class Binary_code:
     """ Essentially a set of Binary_codeword objects, all of the same length."""
 
     def __init__(self,length,val=[],method='list',expected_count=0):
-        """ Initialize with the given length, and add all elements of values to the set of codewords (default empty)."""
+        """ Initialize with given codeword length; add all elements of values to the set of codewords (default empty)."""
         try: 
             self.length = int(length)
         except (ValueError,TypeError):  
@@ -392,6 +392,23 @@ class Binary_code:
         new_codeword_set = set(random.sample(codewords_by_bit_sum, N))
         return new_codeword_set
         # MAYBE-TODO add an option to make it take all the codewords from all the bit-sum sets except the last one (and random from the last one to get up to N), instead of just taking random N ones from the whole range?  More complicated, not sure if useful.
+
+
+    def add_mirrored_bits(self, bit_position_list):
+        """ Return new Binary_code with all codewords extended by mirroring the given bits.
+
+        For example a (0011,1010,1100) code with bit_position_list [0,1] will become (001111,101001,110000).
+        The new bits will be added in the order provided; a position may be given multiple times - [0,0,1,1,0] is valid. 
+        """
+        # MAYBE-TODO add error-checking? Make sure that bit_position_list is a sequence/iterator/something, and that new_codeword_01_list[bit_position] isn't an IndexError...
+        new_codewords = set()
+        new_codeword_length = self.length + len(bit_position_list)
+        for codeword in self.codewords:
+            new_codeword_01_list = codeword.list()
+            for bit_position in bit_position_list:
+                new_codeword_01_list.append(not new_codeword_01_list[bit_position])
+            new_codewords.add(Binary_codeword(val=new_codeword_01_list))
+        return Binary_code(length=new_codeword_length, val=new_codewords, method='list', expected_count=self.size())
 
 
     def clonality_count_conflicts(self, N_allowed_changes=(0,0), count_self_conflicts=False,remove_all_zero_codeword=False,
@@ -773,6 +790,25 @@ class Testing__Binary_code__most_functions(unittest.TestCase):
         # check that creation fails with inexistent method keyword
         self.assertRaises(BinaryCodeError, Binary_code, 4, ['110','101','011','000'], method='random')
 
+    def test__creation_from_matrix_generator_file(self):
+        # (also implicitly checks generation from a matrix object)
+        infile1 = 'error-correcting_codes/19-10-5_generator'
+        try:            B19 = Binary_code(19,val=infile1,method='matrixfile',expected_count=2**10)
+        except IOError: sys.exit("Couldn't find input file %s to run matrix file test."%infile1)
+        assert B19.find_bit_sum_counts() == [(0,1), (5,30), (6,64), (7,90), (8,150), (9,180), (10,168), (11,156), (12,104), (13,46), (14,24), (15,10), (16,1)]
+        B20 = B19.add_parity_bit()
+        assert B20.size() == 2**10
+        assert B20.length == 20
+        assert B20.find_bit_sum_counts() == [(0, 1), (6, 94), (8, 240), (10, 348), (12, 260), (14, 70), (16, 11)]
+
+    def test__creation_from_code_list_file(self):
+        B19 = Binary_code(19,val='error-correcting_codes/19-10-5_generator',method='matrixfile',expected_count=2**10)
+        B20 = B19.add_parity_bit()
+        infile2 = 'error-correcting_codes/20-10-6_list'
+        try:            B20_new = Binary_code(20,val=infile2,method='listfile',expected_count=2**10)
+        except IOError: sys.exit("Couldn't find input file %s to run list file test."%infile2)
+        assert B20_new == B20
+
     def test__codeword_add_remove(self):
         B = Binary_code(3,['110','101','011','000'])
         C = Binary_code(3,B.codewords)
@@ -941,24 +977,36 @@ class Testing__Binary_code__most_functions(unittest.TestCase):
             for take_high in True, False:
                 self.assertRaises(BinaryCodeError, D.give_N_codewords_by_bit_sum, 5, take_high=take_high)
 
-    def test__creation_from_matrix_generator_file(self):
-        # (also implicitly checks generation from a matrix object)
-        infile1 = 'error-correcting_codes/19-10-5_generator'
-        try:            B19 = Binary_code(19,val=infile1,method='matrixfile',expected_count=2**10)
-        except IOError: sys.exit("Couldn't find input file %s to run matrix file test."%infile1)
-        assert B19.find_bit_sum_counts() == [(0,1), (5,30), (6,64), (7,90), (8,150), (9,180), (10,168), (11,156), (12,104), (13,46), (14,24), (15,10), (16,1)]
-        B20 = B19.add_parity_bit()
-        assert B20.size() == 2**10
-        assert B20.length == 20
-        assert B20.find_bit_sum_counts() == [(0, 1), (6, 94), (8, 240), (10, 348), (12, 260), (14, 70), (16, 11)]
-
-    def test__creation_from_code_list_file(self):
-        B19 = Binary_code(19,val='error-correcting_codes/19-10-5_generator',method='matrixfile',expected_count=2**10)
-        B20 = B19.add_parity_bit()
-        infile2 = 'error-correcting_codes/20-10-6_list'
-        try:            B20_new = Binary_code(20,val=infile2,method='listfile',expected_count=2**10)
-        except IOError: sys.exit("Couldn't find input file %s to run list file test."%infile2)
-        assert B20_new == B20
+    def test__add_mirrored_bits(self):
+        D = Binary_code(2,['11','10','01','00'])
+        # mirroring no bits should yield identical code
+        assert D.add_mirrored_bits([]) == D
+        # check a few cases of mirroring some bits
+        assert D.add_mirrored_bits([0]) == Binary_code(3,['110','100','011','001'])
+        assert D.add_mirrored_bits([1]) == Binary_code(3,['110','101','010','001'])
+        assert D.add_mirrored_bits([0,1]) == Binary_code(4,['1100','1001','0110','0011'])
+        assert D.add_mirrored_bits([0,1,0,1]) == Binary_code(6,['110000','100101','011010','001111'])
+        assert D.add_mirrored_bits([0,0,0,1,1,1]) == Binary_code(8,['11000000','10000111','01111000','00111111'])
+        # anything that works as an index is legal, so negative bit positions should just take from the end
+        assert D.add_mirrored_bits([-1]) == D.add_mirrored_bits([1])
+        assert D.add_mirrored_bits([-2]) == D.add_mirrored_bits([0])
+        ### same thing, different code
+        B = Binary_code(3,['110','101','011','000'])
+        assert B.add_mirrored_bits([]) == B
+        assert B.add_mirrored_bits([0]) == Binary_code(4,['1100','1010','0111','0001'])
+        assert B.add_mirrored_bits([2,2,2]) == Binary_code(6,['110111','101000','011000','000111'])
+        assert B.add_mirrored_bits([-2]) == B.add_mirrored_bits([1])
+        ### errors:
+        # the argument must be a sequence/iterator/something of ints
+        self.assertRaises(TypeError, D.add_mirrored_bits, 5)
+        self.assertRaises(TypeError, D.add_mirrored_bits, 'abc')
+        self.assertRaises(TypeError, D.add_mirrored_bits, ['a'])
+        # the index must be within the range of the length of the code's codewords
+        self.assertRaises(IndexError, D.add_mirrored_bits, [100])
+        self.assertRaises(IndexError, D.add_mirrored_bits, [2])
+        self.assertRaises(IndexError, D.add_mirrored_bits, [-3])
+        self.assertRaises(IndexError, B.add_mirrored_bits, [3])
+        self.assertRaises(IndexError, B.add_mirrored_bits, [-4])
 
 
 class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
