@@ -854,6 +854,7 @@ def write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool
             pool_transfers[setname] = []
         for (number,position) in enumerate(curr_pool_positions):
             pooling_scheme = ''.join([codeword.string()[number] for codeword in curr_sample_codewords])
+            # MAYBE-TODO implement this pooling_scheme thing as a binary_code_utilities.py Binary_code method?
             total_transfers = pooling_scheme.count('1')
             total_volume = total_transfers * transfer_volume
             OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, pooling_scheme, total_transfers, total_volume))
