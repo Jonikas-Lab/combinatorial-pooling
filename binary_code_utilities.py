@@ -509,6 +509,8 @@ class Binary_code:
         if conflict_count_to_codeword_set.keys() in ([0],[]):   return False
         else:                                                   return True
 
+    # MAYBE-TODO write a function to find the highest N_allowed_changes that results in no clonality conflict?  Maybe just for single-digit N_allowed_changes - otherwise we run into the issue of whether (2,0) or (0,3) is higher, although there could be more options to deal with that.
+
     def clonality_obvious_no_conflict_subset(self, N_allowed_changes=(0,0), count_self_conflicts=False, 
                                          remove_all_zero_codeword=False, print_conflict_details=False, quiet=False):
         """ Really naive solution of the clonality problem: return a set of codewords with 0 conflicts, 
