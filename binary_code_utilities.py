@@ -397,6 +397,22 @@ class Binary_code:
         return new_codeword_set
         # MAYBE-TODO add an option to make it take all the codewords from all the bit-sum sets except the last one (and random from the last one to get up to N), instead of just taking random N ones from the whole range?  More complicated, not sure if useful.
 
+    def give_N_codewords_even_distribution(self, N, N_tries, return_repeat_summary=False):
+        """ Run give_N_codewords_random N_tries times, return result with most even bit_sums_across_digits distribution.
+        If return_repeat_summary is True, also return a list containing the max-min range for each try.
+        """
+        best_code, best_BSAD_range, all_BSAD_ranges = None, self.size(), []
+        for i in range(N_tries):
+            curr_code = Binary_code(self.length, self.give_N_codewords_random(N))
+            bit_sums_across_digits = curr_code.bit_sums_across_digits()
+            BSAD_range = max(bit_sums_across_digits) - min(bit_sums_across_digits)
+            if BSAD_range < best_BSAD_range:
+                best_code = curr_code
+                best_BSAD_range = BSAD_range
+            all_BSAD_ranges.append(BSAD_range)
+        if return_repeat_summary and N_tries>1:     return best_code.codewords, all_BSAD_ranges
+        else:                                       return best_code.codewords
+
     def add_mirrored_bits(self, bit_position_list):
         """ Return new Binary_code with all codewords extended by mirroring the given bits.
 
@@ -1036,6 +1052,8 @@ class Testing__Binary_code__most_functions(unittest.TestCase):
         self.assertRaises(IndexError, B.add_mirrored_bits, [3])
         self.assertRaises(IndexError, B.add_mirrored_bits, [-4])
 
+        # TODO add a unit-test for give_N_codewords_even_distribution!
+
 
 class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
     """ Tests clonality_count_conflicts, clonality_conflict_check, clonality_obvious_no_conflict_subset, 
@@ -1293,7 +1311,7 @@ class Testing__Binary_code__clonality_conflict_functions(unittest.TestCase):
                     assert len(code.clonality_grow_no_conflict_subset(N_changes,count_self_conflicts=False,
                                more_random=more_random,N_repeats=N_repeats, quiet=True, starting_subset=set([b111]))) == 2
 
-    # TODO add simple unit-test for clonality_grow_no_conflict_subset N_repeats argument return_repeat_summary=True: check that N_repeats returns a list of the right length and that the values in it are different when they should be and all the same when they should be.
+    # TODO add simple unit-test for clonality_grow_no_conflict_subset N_repeats argument return_repeat_summary=True: check that N_repeats returns a list of the right length and that the values in it are different when they should be and all the same when they should be, and that the maximum of it is the size of the returned set.
 
     def test__clonality_grow_no_conflict_subset(self):
         """ Extra clonality_grow_no_conflict_subset checks with larger real codes."""
