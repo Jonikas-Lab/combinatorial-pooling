@@ -541,7 +541,7 @@ def do_test_run():
         (options, args) = parser.parse_args(test_run.split())
         run_main_function(parser,options,args)
     print("*** Smoke test runs finished. If you didn't get any errors, that's good (warnings are all right). "
-          + "You can check the output files to make sure they look reasonable (this is NOT done automatically!).")
+          + "You can check the output files to make sure they look reasonable (this is NOT done automatically!). ***")
     return 0
 
 ### General functions (not input/output or optparse-related or testing or main), in approximate order of use
