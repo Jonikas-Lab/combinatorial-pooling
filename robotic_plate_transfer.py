@@ -17,7 +17,7 @@ USAGE:  robotic_plate_transfer.py [options] outfile_base_name
 """
 
 # standard libraries
-import sys, os, shutil
+import sys, os
 import unittest
 from collections import defaultdict
 from math import ceil
@@ -25,7 +25,7 @@ from string import ascii_uppercase, ascii_lowercase     # this is 'ABCDEFGHIJKLM
 # my modules
 import binary_code_utilities
 from general_utilities import invert_list_to_dict, save_line_list_as_file, write_header_data
-from testing_utilities import compare_files_with_regex
+from testing_utilities import run_functional_tests
 
 class PlateTransferError(Exception):
     """ Exception for this file (does nothing interesting)."""
@@ -460,10 +460,8 @@ def do_test_run():
         return 1
 
     ### 1) TESTS WITH ACTUAL OUTPUT REFERENCE FILES - THE OUTPUT IS CHECKED FOR CORRECTNESS
-    print("\n*** CHECKED TEST RUNS - THE OUTPUT IS CHECKED AGAINST CORRECT REFERENCE FILES. ***")
     # test setup - giving the name/description/arguments for each test
     test_folder = "test_data"
-    outfile_base_name = "test_tmp"
     tests = [("test_basic", "Basic test: one 96-well source plate, one 6-well destination plate, [3,2,1] code", 
               "-n7 -N3  -p1 -s96 -P1 -S6   -o          -i Source -c error-correcting_codes/3-3-1_list -q"), 
              ("test_multi-source", "Multiple source plates (two 6-well), single Biomek file", 
@@ -480,69 +478,19 @@ def do_test_run():
               "-n7 -N4  -p2 -s6  -P1 -S6   -m -x4 -M   -i Source -c error-correcting_codes/4-3-2_list -q"),
              ("test_fake6-plate", "Same as test_basic but using fake6 destination plate", 
               "-n7 -N3  -p1 -s96 -P1 -Sfake6   -o      -i Source -c error-correcting_codes/3-3-1_list -q")] 
-
-    # running each test
-    for test_name, test_descr, test_run in tests:
-        print(" * New checked-test run: %s (%s).\n   Arguments: %s"%(test_descr,test_name,test_run))
-        # actually do run_main_function with the given inputs
-        (options, args) = parser.parse_args(test_run.split() + [os.path.join(test_folder,outfile_base_name)])
-        run_main_function(parser,options,args)
-        # find output reference files in test_folder to compare the output files against
-        test_reference_files = [f for f in os.listdir(test_folder) if f.startswith(test_name)]
-        # for each reference output files found, compare the tmp output file, 
-        #  and fail the test if the output file doesn't exist or differs from the reference file.
-        for reffile in test_reference_files:
-            reffile = os.path.join(test_folder,reffile)
-            outfile = reffile.replace(test_name, outfile_base_name)
-            if not os.path.exists(outfile):
-                print("TEST FAILED!!  Output file %s (to match reference file %s) doesn't exist."%(outfile,reffile))
-                return 1
-            with open(reffile,'r') as REFFILE:
-                with open(outfile,'r') as OUTFILE:
-                    file_comparison_result = compare_files_with_regex(OUTFILE, REFFILE)
-            if file_comparison_result==True:
-                os.remove(outfile)
-            else:
-                print("TEST FAILED!!  Reference file %s and output file %s differ. MORE INFO ON "%(reffile,outfile)
-                      +"DIFFERENCE (the two mismatched lines or an error message): '%s', '%s'"%file_comparison_result)
-                return 1
-        # make sure there aren't any extra output files without reference files
-        test_output_files = [f for f in os.listdir(test_folder) if f.startswith(outfile_base_name)]
-        for outfile in test_output_files:
-            outfile = os.path.join(test_folder,outfile)
-            reffile = outfile.replace(outfile_base_name, test_name)
-            if not os.path.exists(reffile):
-                print("TEST FAILED!!  Output file %s has no matching reference file (%s)."%(outfile,reffile))
-                return 1
-                # MAYBE-TODO or I could just print a message and NOT fail, and use this method for smoke-tests...
-
-    print("*** Checked test runs finished - EVERYTHING IS FINE. ***")
+    return1 = run_functional_tests(tests, parser, run_main_function, test_folder)
     # MAYBE-TODO right now I'm using regular expressions and compare_files_with_regex to avoid having the tests fail due to different date or some such. The right way to do this is probably with Mock library - read up on that and change to it that method some point? (See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle)
 
     ### 2) "SMOKE TESTS" WITH NO OUTPUT REFERENCE FILES - just make sure they work and don't give errors
     # MAYBE-TODO may want to remove those after I have enough real tests above... Or at least make them optional.
-    print("\n*** SMOKE TEST RUNS - THE OUTPUT IS NOT CHECKED, WE'RE JUST MAKING SURE THERE ARE NO ERRORS. ***")
-
     smoketest_folder = "test_data/smoke-test_outputs"
-    if os.access(smoketest_folder,os.F_OK):
-        print("Test output files will be saved in the %s directory (already present - removing it now)."%smoketest_folder)
-        shutil.rmtree(smoketest_folder)
-    else:
-        print("Test output files will be saved in the %s directory (not present - creating it now)."%smoketest_folder)
-    os.mkdir(smoketest_folder)
-
-    test_runs = ["-n 63 -N 15 -P 3 -i Source1 -o -C error-correcting_codes/15-6-6_generator %s/test1 -q"%smoketest_folder, 
-              "-n 63 -N 15 -P 3 -i Source1 -o -M -C error-correcting_codes/15-6-6_generator %s/test2 -q"%smoketest_folder, 
-             "-n 384 -N 18 -p 4 -P 3 -i Source -m -C error-correcting_codes/18-9-6_generator %s/test3 -q"%smoketest_folder]
+    test_runs = [("test1", "-n63  -N15 -P3     -i Source1 -o    -C error-correcting_codes/15-6-6_generator -q"),
+                 ("test2", "-n63  -N15 -P3     -i Source1 -o -M -C error-correcting_codes/15-6-6_generator -q"),
+                 ("test3", "-n384 -N18 -p4 -P3 -i Source  -m    -C error-correcting_codes/18-9-6_generator -q")]
     # MAYBE-TODO add name/description strings to the test cases?
-    for test_run in test_runs:
-        print(" * New smoke-test run, with arguments:\n   %s"%test_run)
-        # regenerate options with test argument string
-        (options, args) = parser.parse_args(test_run.split())
-        run_main_function(parser,options,args)
-    print("*** Smoke test runs finished. If you didn't get any errors, that's good (warnings are all right). "
-          + "You can check the output files to make sure they look reasonable (this is NOT done automatically!). ***")
-    return 0
+    return2 = run_functional_tests(test_runs, parser, run_main_function, smoketest_folder, smoke_tests=True)
+
+    return (return1 or return2)
 
 ### General functions (not input/output or optparse-related or testing or main), in approximate order of use
 
