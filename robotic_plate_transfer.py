@@ -147,6 +147,11 @@ class Plate_type:
         assert isinstance(well_ID,str), "self.well_ID_list value must be a string or a generator of strings!"
         return well_ID
 
+    # TODO also needs a get_all_well_IDs_from_number function, to print in the general output file!  Like this:
+    #   pool_number plate_and_well_position pooling_scheme  transfers   volume (ul)
+    #   0   Destination,B2/B3/C2/C3  0001111 4   80
+
+
 defined_plate_types = Plate_type.defined_plate_types
 defined_plate_types_str = Plate_type.defined_plate_types_str
 
@@ -514,9 +519,11 @@ def do_test_run():
               "-n7 -N4  -p2 -s6  -P1 -S6   -o          -i Source -c error-correcting_codes/4-3-2_list -q"),
              ("test_432-all-outfiles", "Same as test_other-code-432 but with multiple/split/mirror outfiles", 
               "-n7 -N4  -p2 -s6  -P1 -S6   -m -x4 -M   -i Source -c error-correcting_codes/4-3-2_list -q"),
-             ("test_fake6-plate", "Same as test_basic but using fake6 destination plate", 
-              "-n7 -N3  -p1 -s96 -P1 -Sfake6   -o      -i Source -c error-correcting_codes/3-3-1_list -q")] 
-            # TODO this test is for fake6_1; add one for fake6_cycle4
+             ("test_fake6-1-plate", "Same as test_basic but using fake6_1 destination plate", 
+              "-n7 -N3  -p1 -s96 -P1 -S fake6_1   -o   -i Source -c error-correcting_codes/3-3-1_list -q"), 
+             ("test_fake6-cycle4-plate", "Same as test_basic but using fake6_cycle4 destination plate", 
+              "-n7 -N3  -p1 -s96 -P1 -S fake6_cycle4 -o -i Source -c error-correcting_codes/3-3-1_list -q"),
+            ] 
     return1 = run_functional_tests(tests, parser, run_main_function, test_folder)
     # MAYBE-TODO right now I'm using regular expressions and compare_files_with_regex to avoid having the tests fail due to different date or some such. The right way to do this is probably with Mock library - read up on that and change to it that method some point? (See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle)
 
@@ -602,7 +609,6 @@ def numbers_to_plate_and_well_IDs(N_samples, plate_type_name, N_plates, plate_ID
     if N_samples <= plate_size*(N_plates-1):
         raise PlateTransferError("Why use %s %s-well plates "%(N_plates,plate_type_name)
                                  + "when you can fit %s samples in %s plates?"%(N_samples,N_plates-1))
-
     position_list = []
     for i in range(N_samples):
         well_number = i % plate_size
@@ -611,7 +617,9 @@ def numbers_to_plate_and_well_IDs(N_samples, plate_type_name, N_plates, plate_ID
         plate_ID = plate_IDs[plate_number]
         position_list.append("%s,%s"%(plate_ID,well_ID))
 
-    # TODO but this still returns a STATIC list of well IDs per position, so the cycling-wellID plate types won't work!!  I think it needs to return a list of position-generating functions instead of static positions, or something like that...
+    # TODO but this still returns a STATIC list of well IDs per position, so the cycling-wellID plate types won't work!!  I think it needs to return a list of position-generating functions instead of static positions, or something like that...  And ALSO a static list of all possible well IDs per position, to print to the general outfile.
+    # MAYBE-TODO Should I maybe just make Plate_type return the full tuple of well IDs per position, and implement all the messing around with generators in numbers_to_plate_and_well_IDs instead?  Might be simpler...
+
     return position_list
 
 
