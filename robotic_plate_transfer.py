@@ -20,12 +20,11 @@ USAGE:  robotic_plate_transfer.py [options] outfile_base_name
 import sys, os
 import unittest
 from collections import defaultdict
-import itertools
 from math import ceil
 from string import ascii_uppercase, ascii_lowercase     # this is 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' and 'abcdef...'
 # my modules
 import binary_code_utilities
-from general_utilities import save_line_list_as_file, write_header_data
+from general_utilities import invert_list_to_dict, save_line_list_as_file, write_header_data
 from testing_utilities import run_functional_tests
 
 class PlateTransferError(Exception):
@@ -34,11 +33,7 @@ class PlateTransferError(Exception):
 
 
 class Plate_type:
-    """ A plate type (384-, 96-, 24-, 6-well, or custom). Converts from sequential well numbers to well positions.
-    
-    The get_well_ID_from_number method returns the well ID based on the sequential well number;
-     note that custom plate types may have multiple well IDs per well number!  See __init__ docstring for detail.
-    """
+    """ A plate type (384-, 96-, 24-, 6-well, or custom). Converts between sequential numbers and well positions."""
 
     ### defined plate types: standard
     _standard_plate_shapes = {6: (2,3), 24: (4,6), 96: (8,12), 384: (16,24)}
@@ -46,12 +41,7 @@ class Plate_type:
     _custom_plate_types = {}
     ## "fake 6-well" plate types: really using a 6-well plate in the Biomek but pretending it's a 96-well (by giving
     #   the 96-well positions that correspond to 6-wells), since the Biomek won't accept a 6-well plate description.
-    # first version - just a single 96-well corresponding to each 6-well
-    _custom_plate_types['fake6_1'] = (6, ['B2','B7','B11','G2','G7','G11'])
-    # second version - just a single 96-well corresponding to each 6-well
-    _custom_plate_types['fake6_cycle4'] = (6, [ ('B2','B3','C2','C3'), ('B6','B7','C6','C7'), ('B10','B11','C10','C11'), 
-                                                ('F2','F3','G2','G3'), ('F6','F7','G6','G7'), ('F10','F11','G10','G11') ] )
-    # could potentially even go up to 12 96-wells per 6-well if needed?
+    _custom_plate_types['fake6'] = (6, ['B2','B7','B11','G2','G7','G11'])
 
     ### all defined plate types as a name:(size,well_ID_list) dict - standard and custom together, for easier usage
     _plate_type_definitions = dict([(str(size), (size,None)) for size in _standard_plate_shapes])
@@ -62,22 +52,23 @@ class Plate_type:
     defined_plate_types_str = ', '.join(defined_plate_types)
 
     def __init__(self, standard_type=None, size=None, well_ID_list=None):
-        """ Set up the plate: standard based on size, or custom based on well_ID_list (can have single or tuple values).
+        """ Set up the plate: preexisting standard_type, standard based on size, or custom based on well_ID_list. 
 
-        If well_ID_list is None, look up size in _standard_plate_shapes and generate a standard plate based on that.
-        Otherwise generate a custom plate based on well_ID_list (and check that its size matches size, if not None).
-         The elements of well_ID_list can be single well IDs or tuples of them (multiple IDs per position) - 
-          see _make_custom_well_ID_list_from_list method docstring for detail.
+        If standard_type is given, look it up in Plate_type._plate_type_definitions and use the size/well_ID_list 
+         from there; if size is also given, check it.  Cannot give well_ID_list together with standard_type.
+        If well_ID_list is given, generate a custom plate based on that (and check that its size matches size, if given).
+        If only size is given, look it up in Plate_type._standard_plate_shapes and generate a standard plate 
+         based on the number of rows and columns from there.
         """
-        size = None if (size is None) else int(size)
         # MAYBE-TODO could give the plate types names?
         # MAYBE-TODO could make Plate_type class collect a dictionary of all the initialized plate types by name?
         # MAYBE-TODO could give each plate type a max volume
+        size = None if (size is None) else int(size)
+        # look up standard_type in _plate_type_definitions, set size and well_ID_list based on that, proceed normally.
         if standard_type is not None:
             if well_ID_list is not None:
                 raise PlateTransferError("Only one of standard_type and well_ID_list should be specified!")
             expected_size = size
-            # look up standard_type in _plate_type_definitions, set size and well_ID_list based on that, proceed normally.
             try:
                 size, well_ID_list = self.__class__._plate_type_definitions[str(standard_type)]
             except KeyError:
@@ -85,22 +76,25 @@ class Plate_type:
                                                                                                    defined_plate_types))
         # if well_ID_list is specified, just use it (and check that the size matches, if not None)
         if well_ID_list is not None:    self._make_custom_well_ID_list_from_list(well_ID_list, size)
+        # if well_ID_list wasn't passed, infer the plate shape from the size (it must be one of the standard sizes)
         else:                           self._make_standard_well_ID_list_from_size(size)
         # if we used a standard_type and a size was passed, check that the size is as expected
         if standard_type is not None and expected_size is not None:
             if not expected_size == self.size:
                 raise PlateTransferError("Standard plate type %s size is %s, not the %s passed by user!"%(standard_type, 
                                                                                               self.size, expected_size))
+        # generate well ID dict (based on the well ID list), such that dict[ID]=number, like {'A1':1, 'A2':2, ...}
+        self.well_ID_dict = invert_list_to_dict(self.well_ID_list)
     
     def _make_standard_well_ID_list_from_size(self, size):
         """ Generate a well ID list (such that list[number]==ID), based on self.rows/columns, like ['A1','A2', ...]."""
-        # figure out rows/columns based on standard plate shapes
         self.size = size
+        # figure out rows/columns based on standard plate shapes
         try:                
            rows, columns = self.__class__._standard_plate_shapes[size]
         except KeyError:    
             raise PlateTransferError("Plate size must be standard (one of %s)"%self.__class__._standard_plate_shapes.keys()
-                                     +" when well_ID_list isn't given!  Size %s given is unacceptable."%size)
+                                     + "when well_ID_list isn't given!  Size %s given is unacceptable."%size)
         assert rows*columns == size, "Malformed plate %s in _standard_plate_shapes!"
         # make the well_ID_list based on rows/columns
         self.well_ID_list = []
@@ -110,57 +104,23 @@ class Plate_type:
                 "Plate generated by _make_standard_well_ID_list_from_size is the wrong size!"
 
     def _make_custom_well_ID_list_from_list(self, well_ID_list, size=None):
-        """ Set up self.well_ID_list: single elements are copied, tuples/lists/sets are turned into generators.
-
-        Basically, if well_ID_list[x] is 'A1', self.well_ID_list will become 'A1'; 
-         if well_ID_list[x] is (1,2,3), self.well_ID_list will become a generators that can return 1, 2, or 3.
-        Save the original well_ID_list to self.raw_well_ID_list.
+        """ Set up custom plate: copy well_ID_list to self.well_ID_list, check size if given.
         """
         if (size is not None) and size != len(well_ID_list):
             raise PlateTransferError("If both size and well_ID_list are passed when creating new custom Plate_type, "
                                      +"size must match list length! (currently %s and %s)"%(size, well_ID_list))
-        # check for duplicates - in ANY elements, so [1,1], [(1,2),(1,2)], [(1,2),[2,3)] and [(1,2),(2,1)] all count.
-        curr_elements = set()
-        for element in well_ID_list:
-            if isinstance(element, (tuple,list,set)): new_elements = set(element)
-            else:                                     new_elements = set([element])
-            for e in new_elements:
-                if e in curr_elements:
-                    raise PlateTransferError("well_ID_list must not contain duplicates! %s found twice."%e)
-            curr_elements |= new_elements
-        # save original well_ID_list, forced to list-of-lists form, as self.raw_well_ID_list
-        self.raw_well_ID_list = [[x] if isinstance(x,str) else x for x in well_ID_list]
-        # set up self.well_ID_list
-        self.well_ID_list = []
-        for element in well_ID_list:
-            if isinstance(element, (tuple,list,set)): new_element = itertools.cycle(element)
-            else:                                     new_element = element
-            self.well_ID_list.append(new_element)
+        self.well_ID_list = well_ID_list
         self.size = len(self.well_ID_list)
-        # MAYBE-TODO or should I just ALWAYS make self.well_ID_list contain generators, even if it's just repeating the same element, and even in _make_standard_well_ID_list_from_size?  It'd be simpler that way, really...
 
-    def get_well_ID_from_number(self, number):
-        """ Given a 0-based well number (4), return a well ID (B2 for 6-well plate, A5 for 96-well plate). 
-        For some custom plates, different well IDs may be returned for separate calls with same number."""
-        # Note: there used to also be a reciprocal get_well_number_from_ID method, but I removed it, since it wasn't used.
-        try:                well_ID_or_generator = self.well_ID_list[number]
-        except IndexError:  raise PlateTransferError("%s-well plate doesn't have well %s!"%(self.size,number))
-        try:                    well_ID = well_ID_or_generator.next()
-        except AttributeError:  well_ID = well_ID_or_generator
-        assert isinstance(well_ID,str), "self.well_ID_list value must be a string or a generator of strings!"
-        return well_ID
+    def get_well_ID_from_number(self,number):
+        """ Given a 0-based well number (4), return the ID (B2 for 6-well plate, A5 for 96-well plate)."""
+        try:                return self.well_ID_list[number]
+        except IndexError:  raise PlateTransferError("Can't get well %s from a %s-well plate!"%(number,self.size))
 
-    def get_all_well_IDs_from_number(self, number):
-        """ Given a 0-based well number (4), return a list of all possible well IDs for that position.
-        This is the same as the list of all the possible return values from get_well_ID_from_number(self, number). 
-        For most standard plates the list will be of length one; for some custom ones, it won't be."""
-        try:                    well_IDs = list(self.raw_well_ID_list[number])
-        except AttributeError:  well_IDs = [self.well_ID_list[number]]
-        for s in well_IDs:   
-            assert isinstance(s,str), "Non-string well ID %s!"%s
-        return well_IDs
-        # TODO add unit-tests for this!
-
+    def get_well_number_from_ID(self,ID):
+        """ Given a well ID (B1), return the sequential 0-based well number (3 for 6-well plate, 12 for 96-well plate)."""
+        try:                return self.well_ID_dict[ID]
+        except IndexError:  raise PlateTransferError("Can't get well %s from a %s-well plate!"%(ID,self.size))
 
 defined_plate_types = Plate_type.defined_plate_types
 defined_plate_types_str = Plate_type.defined_plate_types_str
@@ -192,20 +152,10 @@ class Testing__Plate_type(unittest.TestCase):
         assert Plate_type(384).get_well_ID_from_number(1) == 'A2'
         assert Plate_type(384).get_well_ID_from_number(24) == 'B1'
         assert Plate_type(384).get_well_ID_from_number(383) == 'P24'
-        assert Plate_type('fake6_1').get_well_ID_from_number(0) == 'B2'
-        assert Plate_type('fake6_1').get_well_ID_from_number(1) == 'B7'
-        assert Plate_type('fake6_1').get_well_ID_from_number(3) == 'G2'
-        assert Plate_type('fake6_1').get_well_ID_from_number(5) == 'G11'
-        # for the fake6_cycle4 plate type, the well IDs returned for each number cycle between 4 values
-        fake6_cycle4_plate = Plate_type('fake6_cycle4')
-        assert [fake6_cycle4_plate.get_well_ID_from_number(0) for _ in range(5)] == 'B2,B3,C2,C3,B2'.split(',')
-        assert [fake6_cycle4_plate.get_well_ID_from_number(1) for _ in range(5)] == 'B6,B7,C6,C7,B6'.split(',')
-        assert [fake6_cycle4_plate.get_well_ID_from_number(3) for _ in range(5)] == 'F2,F3,G2,G3,F2'.split(',')
-        assert [fake6_cycle4_plate.get_well_ID_from_number(5) for _ in range(5)] == 'F10,F11,G10,G11,F10'.split(',')
-        # note that two different instances are SEPARATE and have their separate cycles
-        fake6_cycle4_plate2 = Plate_type('fake6_cycle4')
-        assert fake6_cycle4_plate.get_well_ID_from_number(0) == 'B3'
-        assert fake6_cycle4_plate2.get_well_ID_from_number(0) == 'B2'
+        assert Plate_type('fake6').get_well_ID_from_number(0) == 'B2'
+        assert Plate_type('fake6').get_well_ID_from_number(1) == 'B7'
+        assert Plate_type('fake6').get_well_ID_from_number(3) == 'G2'
+        assert Plate_type('fake6').get_well_ID_from_number(5) == 'G11'
 
     def test__get_well_ID_from_number__last_wells(self):
         # you can also use a negative list index to get wells from the end, why not
@@ -213,10 +163,7 @@ class Testing__Plate_type(unittest.TestCase):
         assert Plate_type(24).get_well_ID_from_number(-1) == 'D6'
         assert Plate_type('96').get_well_ID_from_number(-1) == 'H12'
         assert Plate_type('384').get_well_ID_from_number(-1) == 'P24'
-        assert Plate_type('fake6_1').get_well_ID_from_number(-1) == 'G11'
-        # for the fake6_cycle4 plate type, the well IDs returned for each number cycle between 4 values. 
-        fake6_cycle4_plate = Plate_type('fake6_cycle4')
-        assert [fake6_cycle4_plate.get_well_ID_from_number(-1) for _ in range(5)] == 'F10,F11,G10,G11,F10'.split(',')
+        assert Plate_type('fake6').get_well_ID_from_number(-1) == 'G11'
 
     def test__get_well_ID_from_number__bad_numbers(self):
         # basic tests with obviously wrong values
@@ -227,6 +174,47 @@ class Testing__Plate_type(unittest.TestCase):
         # well numbers are 0-based, so there should be no well N in an N-well plate (the wells are 0..N-1)
         for plate_size in Plate_type._standard_plate_shapes.keys():
             self.assertRaises(PlateTransferError, Plate_type(plate_size).get_well_ID_from_number, plate_size)
+
+    def test__get_well_number_from_ID__known_wells(self):
+        # try the first, second, first-in-second-row, and last well of each plate size
+        assert Plate_type('6').get_well_number_from_ID('A1') == 0
+        assert Plate_type('6').get_well_number_from_ID('A2') == 1
+        assert Plate_type('6').get_well_number_from_ID('B1') == 3
+        assert Plate_type('6').get_well_number_from_ID('B3') == 5
+        assert Plate_type(24).get_well_number_from_ID('A1') == 0
+        assert Plate_type(24).get_well_number_from_ID('A2') == 1
+        assert Plate_type(24).get_well_number_from_ID('B1') == 6
+        assert Plate_type(24).get_well_number_from_ID('D6') == 23
+        assert Plate_type(96).get_well_number_from_ID('A1') == 0
+        assert Plate_type(96).get_well_number_from_ID('A2') == 1
+        assert Plate_type(96).get_well_number_from_ID('B1') == 12
+        assert Plate_type(96).get_well_number_from_ID('H12') == 95
+        assert Plate_type('384').get_well_number_from_ID('A1') == 0
+        assert Plate_type('384').get_well_number_from_ID('A2') == 1
+        assert Plate_type('384').get_well_number_from_ID('B1') == 24
+        assert Plate_type('384').get_well_number_from_ID('P24') == 383
+        assert Plate_type('fake6').get_well_number_from_ID('B2') == 0
+        assert Plate_type('fake6').get_well_number_from_ID('B7') == 1
+        assert Plate_type('fake6').get_well_number_from_ID('G2') == 3
+        assert Plate_type('fake6').get_well_number_from_ID('G11') == 5
+        
+    def test__get_well_number__fromID__bad_numbers(self):
+        """ For each size, test a row and column that shouldn't exist). """
+        # MAYBE-TODO make.get_well_number_from_ID check for this explicitly, raise PlateTransferError instead of KeyError?
+        self.assertRaises(KeyError, Plate_type('6').get_well_number_from_ID, 'A4')
+        self.assertRaises(KeyError, Plate_type('6').get_well_number_from_ID, 'C1')
+        self.assertRaises(KeyError, Plate_type('24').get_well_number_from_ID, 'A7')
+        self.assertRaises(KeyError, Plate_type('24').get_well_number_from_ID, 'E1')
+        self.assertRaises(KeyError, Plate_type(96).get_well_number_from_ID, 'A13')
+        self.assertRaises(KeyError, Plate_type(96).get_well_number_from_ID, 'I1')
+        self.assertRaises(KeyError, Plate_type(384).get_well_number_from_ID, 'A25')
+        self.assertRaises(KeyError, Plate_type(384).get_well_number_from_ID, 'Q1')
+        self.assertRaises(KeyError, Plate_type('fake6').get_well_number_from_ID, 'B1')
+        self.assertRaises(KeyError, Plate_type('fake6').get_well_number_from_ID, 'B4')
+        self.assertRaises(KeyError, Plate_type('fake6').get_well_number_from_ID, 'B12')
+        self.assertRaises(KeyError, Plate_type('fake6').get_well_number_from_ID, 'A2')
+        self.assertRaises(KeyError, Plate_type('fake6').get_well_number_from_ID, 'D2')
+        self.assertRaises(KeyError, Plate_type('fake6').get_well_number_from_ID, 'H2')
 
     ### Testing creating new plate types (legal and not)
 
@@ -254,10 +242,14 @@ class Testing__Plate_type(unittest.TestCase):
         assert new_plate_type.size == 3
         assert new_plate_type.get_well_ID_from_number(0) == 'a'
         assert new_plate_type.get_well_ID_from_number(2) == 'c'
+        assert new_plate_type.get_well_number_from_ID('a') == 0
+        assert new_plate_type.get_well_number_from_ID('c') == 2
         new_plate_type = Plate_type(well_ID_list=['A29','D1'])
         assert new_plate_type.size == 2
         assert new_plate_type.get_well_ID_from_number(0) == 'A29'
         assert new_plate_type.get_well_ID_from_number(1) == 'D1'
+        assert new_plate_type.get_well_number_from_ID('A29') == 0
+        assert new_plate_type.get_well_number_from_ID('D1') == 1
 
     def test__creating_bad_plate_types_from_list(self):
         # if size is given, it must match the lenght of well_ID_list
@@ -267,7 +259,7 @@ class Testing__Plate_type(unittest.TestCase):
         for bad_list in [True, 4, 1232]:
             self.assertRaises(TypeError,Plate_type, well_ID_list=bad_list)
         for bad_list in [['a','a'], [0,0]]:
-            self.assertRaises(PlateTransferError,Plate_type, well_ID_list=bad_list)
+            self.assertRaises(ValueError,Plate_type, well_ID_list=bad_list)
 
 
 class Testing__generate_outfile_names(unittest.TestCase):
@@ -339,39 +331,11 @@ class Testing__numbers_to_plate_and_well_IDs(unittest.TestCase):
     """ Unit-tests for the numbers_to_plate_and_well_IDs function. """
 
     def test__correct_cases(self):
-        def check_results(args, all_pos_reference):
-            #print args
-            pos_getters, all_pos_lists = numbers_to_plate_and_well_IDs(*args)
-            assert all_pos_lists == all_pos_reference
-            single_value_lists = []
-            for all_pos in all_pos_reference:
-                plate, wells = all_pos.split(',')
-                wells = wells.split('/')
-                single_value_lists.append(["%s,%s"%(plate,well) for well in wells])
-            for getter,all_return_values in zip(pos_getters, single_value_lists):
-                #print all_return_values
-                #print [getter() for x in range(len(all_return_values)+1)]
-                for i in range(len(all_return_values)):
-                    assert getter() == all_return_values[i]
-        check_results((10,6,2,['plate1','plate2']), ['plate1,A1', 'plate1,A2', 'plate1,A3', 
-                                                     'plate1,B1', 'plate1,B2', 'plate1,B3', 
-                                                     'plate2,A1', 'plate2,A2', 'plate2,A3', 'plate2,B1'])
-        check_results((10,'6',2,['plate1','plate2']), ['plate1,A1', 'plate1,A2', 'plate1,A3', 
-                                                       'plate1,B1', 'plate1,B2', 'plate1,B3', 
-                                                       'plate2,A1', 'plate2,A2', 'plate2,A3', 'plate2,B1'])
-        check_results((10,24,1,['plate1']), ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 'plate1,A6', 
-                                             'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate1,B4'])
-        check_results((10,96,1,['plate1']), ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 
-                                             'plate1,A6', 'plate1,A7', 'plate1,A8', 'plate1,A9', 'plate1,A10'])
-        check_results((10,'fake6_1',2,['plate1','plate2']), ['plate1,B2', 'plate1,B7', 'plate1,B11', 
-                                                             'plate1,G2', 'plate1,G7', 'plate1,G11', 
-                                                             'plate2,B2', 'plate2,B7', 'plate2,B11', 'plate2,G2'])
-        # note that for plate types that cycle through multiple well IDs per position (like fake6_cycle4), 
-        #  the cycle should be independent for each destination plate (so plate1,B2 and plate2,B2, not plate2,B3)
-        check_results((10,'fake6_cycle4',2,['plate1','plate2']), 
-                              ['plate1,B2/B3/C2/C3', 'plate1,B6/B7/C6/C7', 'plate1,B10/B11/C10/C11', 
-                               'plate1,F2/F3/G2/G3', 'plate1,F6/F7/G6/G7', 'plate1,F10/F11/G10/G11', 
-                               'plate2,B2/B3/C2/C3', 'plate2,B6/B7/C6/C7', 'plate2,B10/B11/C10/C11', 'plate2,F2/F3/G2/G3'])
+        assert numbers_to_plate_and_well_IDs(10, 6, 2, ['plate1','plate2']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate2,A1', 'plate2,A2', 'plate2,A3', 'plate2,B1']
+        assert numbers_to_plate_and_well_IDs(10, '6', 2, ['plate1','plate2']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate2,A1', 'plate2,A2', 'plate2,A3', 'plate2,B1']
+        assert numbers_to_plate_and_well_IDs(10, 24, 1, ['plate1']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 'plate1,A6', 'plate1,B1', 'plate1,B2', 'plate1,B3', 'plate1,B4']
+        assert numbers_to_plate_and_well_IDs(10, 96, 1, ['plate1']) == ['plate1,A1', 'plate1,A2', 'plate1,A3', 'plate1,A4', 'plate1,A5', 'plate1,A6', 'plate1,A7', 'plate1,A8', 'plate1,A9', 'plate1,A10']
+        assert numbers_to_plate_and_well_IDs(10, 'fake6', 2, ['plate1','plate2']) == ['plate1,B2', 'plate1,B7', 'plate1,B11', 'plate1,G2', 'plate1,G7', 'plate1,G11', 'plate2,B2', 'plate2,B7', 'plate2,B11', 'plate2,G2']
 
     def test__bad_input(self):
         # Shouldn't work, N_plates doesn't match the plate ID list
@@ -465,15 +429,12 @@ class Testing__make_Biomek_file_commands(unittest.TestCase):
     def test__basic_functionality(self):
         [b01,b10,b11,b00] = [binary_code_utilities.Binary_codeword(x) for x in ['01','10','11','00']]
         # basic functionality for combinatorial pooling (note that 'x', 'A' etc here would really be 'plate1,A1' or such)
-        pos_getters_x = [lambda: 'x']
-        pos_getters_xyz = [lambda: 'x', lambda: 'y', lambda: 'z']
-        pos_getters_AB = [lambda: 'A', lambda: 'B']
-        assert make_Biomek_file_commands([b10],pos_getters_x,pos_getters_AB,5) == ['x,A,5']
-        assert make_Biomek_file_commands([b01],pos_getters_x,pos_getters_AB,5) == ['x,B,5']
-        assert make_Biomek_file_commands([b11],pos_getters_x,pos_getters_AB,5) == ['x,A,5','x,B,5']
-        assert make_Biomek_file_commands([b01,b10,b11],pos_getters_xyz,pos_getters_AB,5)==['x,B,5','y,A,5','z,A,5','z,B,5']
-        assert make_Biomek_file_commands([b11,b10,b01],pos_getters_xyz,pos_getters_AB,5)==['x,A,5','x,B,5','y,A,5','z,B,5']
-        assert make_Biomek_file_commands([b01,b01,b01],pos_getters_xyz,pos_getters_AB,5)==['x,B,5','y,B,5','z,B,5']
+        assert make_Biomek_file_commands([b10],['x'],['A','B'],5) == ['x,A,5']
+        assert make_Biomek_file_commands([b01],['x'],['A','B'],5) == ['x,B,5']
+        assert make_Biomek_file_commands([b11],['x'],['A','B'],5) == ['x,A,5','x,B,5']
+        assert make_Biomek_file_commands([b01,b10,b11],['x','y','z'],['A','B'],5) == ['x,B,5','y,A,5','z,A,5','z,B,5']
+        assert make_Biomek_file_commands([b11,b10,b01],['x','y','z'],['A','B'],5) == ['x,A,5','x,B,5','y,A,5','z,B,5']
+        assert make_Biomek_file_commands([b01,b01,b01],['x','y','z'],['A','B'],5) == ['x,B,5','y,B,5','z,B,5']
 
     def test__fail_for_length_mismatches(self):
         [b01,b10,b11,b00] = [binary_code_utilities.Binary_codeword(x) for x in ['01','10','11','00']]
@@ -557,11 +518,8 @@ def do_test_run():
               "-n7 -N4  -p2 -s6  -P1 -S6   -o          -i Source -c error-correcting_codes/4-3-2_list -q"),
              ("test_432-all-outfiles", "Same as test_other-code-432 but with multiple/split/mirror outfiles", 
               "-n7 -N4  -p2 -s6  -P1 -S6   -m -x4 -M   -i Source -c error-correcting_codes/4-3-2_list -q"),
-             ("test_fake6-1-plate", "Same as test_basic but using fake6_1 destination plate", 
-              "-n7 -N3  -p1 -s96 -P1 -S fake6_1   -o   -i Source -c error-correcting_codes/3-3-1_list -q"), 
-             ("test_fake6-cycle4-plate", "Same as test_basic but using fake6_cycle4 destination plate", 
-              "-n7 -N3  -p1 -s96 -P1 -S fake6_cycle4 -o -i Source -c error-correcting_codes/3-3-1_list -q"),
-            ] 
+             ("test_fake6-plate", "Same as test_basic but using fake6 destination plate", 
+              "-n7 -N3  -p1 -s96 -P1 -Sfake6   -o      -i Source -c error-correcting_codes/3-3-1_list -q")] 
     return1 = run_functional_tests(tests, parser, run_main_function, test_folder)
     # MAYBE-TODO right now I'm using regular expressions and compare_files_with_regex to avoid having the tests fail due to different date or some such. The right way to do this is probably with Mock library - read up on that and change to it that method some point? (See my stackoverflow question http://stackoverflow.com/questions/9726214/testing-full-program-by-comparing-output-file-to-reference-file-whats-it-calle)
 
@@ -632,44 +590,32 @@ def get_plate_name_list_from_input(N_plates,ID_input):
         raise PlateTransferError("Can't figure out how to name %s plates using input \"%s\"!"%(N_plates,ID_input))
 
 
-def _make_plate_well_pos_generator(plate_pos, well_pos_generator, well_pos_args):
-    """ Given string s and generator that returns [x,y,z,...] with arg, return new generator with values [sx,sy,sz,...]"""
-    def new_generator():
-        yield "%s,%s"%(plate_pos, well_pos_generator(*well_pos_args))
-    return new_generator
-
 def numbers_to_plate_and_well_IDs(N_samples, plate_type_name, N_plates, plate_IDs):
     """ Given the number of samples and plate information, return a list of with plate/well positions for each sample.
     The list will be of length N_samples, about like this: ['plate1,A1','plate1,A2',...,'plate1,H12','plate2,A1',...]. """
 
     if not len(plate_IDs)==N_plates:
         raise PlateTransferError("The number of plates must match the number of plate IDs provided!")
-    # We need a separate Plate_type instance for each destination plate - otherwise the types with cycling well IDs (like
-    #  fake6_cycle4) won't work correctly - we want them to cycle through well IDs INDEPENDENTLY for each dest. plate. 
+
+    # Make a separate Plate_type instance for each destination plate, just in case they have special behavior
     plate_instances = [Plate_type(standard_type=plate_type_name) for _ in range(N_plates)]
     plate_size = plate_instances[0].size
+
     if N_samples > plate_size*N_plates:
         raise PlateTransferError("Can't fit %s samples in %s %s-well plates!"%(N_samples,N_plates,plate_type_name))
     if N_samples <= plate_size*(N_plates-1):
         raise PlateTransferError("Why use %s %s-well plates "%(N_plates,plate_type_name)
                                  + "when you can fit %s samples in %s plates?"%(N_samples,N_plates-1))
-    position_getter_list = []
-    all_positions_list = []
+
+    position_list = []
     for i in range(N_samples):
         plate_number = i // plate_size
         well_number = i % plate_size
         plate_ID = plate_IDs[plate_number]
-        all_well_IDs = '/'.join(plate_instances[plate_number].get_all_well_IDs_from_number(well_number))
-        all_positions_list.append("%s,%s"%(plate_ID, all_well_IDs))
-        position_getter_list.append(_make_plate_well_pos_generator(plate_ID, Plate_type.get_well_ID_from_number, 
-                                                                   (plate_instances[plate_number], well_number)))
+        well_ID = plate_instances[plate_number].get_well_ID_from_number(well_number)
+        position_list.append("%s,%s"%(plate_ID,well_ID))
 
-    # TODO THE REASON WHY THE UNIT-TESTS FAIL: Because when g is a generator, g() is not the same as g.next()!!!  I don't really want generators, I want normal functions! So that I can just run x() to get a value (and then x() again to get another one), instead of x.next() or even x().next().  How to do that? Looks like the solution is a class with a self.generator and a __call__ method that returns self.generator.next().
-
-    # TODO but this still returns a STATIC list of well IDs per position, so the cycling-wellID plate types won't work!!  I think it needs to return a list of position-generating functions instead of static positions, or something like that...  And ALSO a static list of all possible well IDs per position, to print to the general outfile ("Destination,B2/B3/C2/C3").
-    # MAYBE-TODO Should I maybe just make Plate_type return the full tuple of well IDs per position, and implement all the messing around with generators in numbers_to_plate_and_well_IDs instead?  Might be simpler...
-
-    return position_getter_list, all_positions_list
+    return position_list
 
 
 def assign_codewords(N_samples, N_pools, binary_code, take_high=False, quiet=False):
@@ -697,33 +643,32 @@ def assign_codewords(N_samples, N_pools, binary_code, take_high=False, quiet=Fal
     return codeword_list
 
 
-def make_Biomek_file_commands(sample_codewords, sample_position_getters, pool_position_getters, volume):
+def make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions, volume):
     """ Return a list of Biomek transfer commands to perform combinatorial pooling based on sample_codewords.
 
     Inputs:
      - sample_codewords - sequential list of Binary_codeword object corresponding to each sample
-     - sample_position_getters - list of plate/well position strings (like "Source1,A4") for each sample, in the same order
-     - pool_position_getters - same-format list of pool position strings
+     - sample_positions - list of plate/well position strings (like "Source1,A4") for each sample, in the same order
+     - pool_positions - same-format list of pool position strings
      - volume - integer giving the volume of all the transfers 
 
     Combinatorial pooling: the pools correspond to each bit of the codeword.  Sample A should be added to pool X
     whenever bit X of the codeword for sample A is 1. 
     Biomek command list format:  a list of strings of the form "plateA,wellA,plateX,wellX,volume" 
-    where "plateA,wellA" is the value of sample_position_getters[A](), and "plateX,wellX" is pool_position_getters[X](). 
-    """
+    where "plateA,wellA" is the value of sample_positions[A], and "plateX,wellX" is pool_positions[X]. """
 
     # make sure the inputs make sense
-    if not len(sample_codewords)==len(sample_position_getters):
+    if not len(sample_codewords)==len(sample_positions):
         raise PlateTransferError("The number of sample positions doesn't match the number of codewords!")
-    if not set([len(x) for x in sample_codewords]) == set([len(pool_position_getters)]):
-        raise PlateTransferError("Not all codeword lentgths match the number of pools *%s)!"%len(pool_position_getters))
+    if not set([len(x) for x in sample_codewords]) == set([len(pool_positions)]):
+        raise PlateTransferError("Not all codeword lentgths match the number of pools *%s)!"%len(pool_positions))
         # note that the second set is always of size 1, so this implicitly makes sure all codewords are the same length
 
     Biomek_file_commands = []
-    for (sample_number, (sample_codeword, sample_pos_getter)) in enumerate(zip(sample_codewords, sample_position_getters)):
+    for (sample_number, (sample_codeword, sample_position)) in enumerate(zip(sample_codewords,sample_positions)):
         pools_to_add_sample_to = [pool_number for (pool_number,if_add) in enumerate(sample_codeword.list()) if if_add==1]
         for pool_number in pools_to_add_sample_to:
-            Biomek_file_commands.append("%s,%s,%s"%(sample_pos_getter(), pool_position_getters[pool_number](), volume))
+            Biomek_file_commands.append("%s,%s,%s"%(sample_position,pool_positions[pool_number],volume))
     return Biomek_file_commands
 
 
@@ -861,8 +806,8 @@ def write_data_to_Biomek_files(outfiles_Biomek, Biomek_file_commands, max_comman
     return final_output_filenames
 
 
-def write_data_to_outfile(main_outfile, sample_codewords, all_sample_positions, all_pool_positions, outfiles_Biomek, 
-                          mirror_sample_codewords=[], all_mirror_pool_positions=[], transfer_volume=0, options=None):
+def write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool_positions, outfiles_Biomek, 
+                          mirror_sample_codewords=[], mirror_pool_positions=[], transfer_volume=0, options=None):
     """ Write data to main_outfile: header, detailed sample/pool data, info on Biomek outfiles and overall counts/volumes.
 
     Header information: command, path, date/time, options - all as #-start comments. 
@@ -883,7 +828,7 @@ def write_data_to_outfile(main_outfile, sample_codewords, all_sample_positions, 
             OUTFILE.write("sample_number\tplate_and_well_position\t%scodeword\ttransfers\tvolume (ul)\n" 
                           %('' if setname=='' else setname+'_'))
             sample_transfers[setname] = []
-        for (number,(codeword,position)) in enumerate(zip(curr_sample_codewords,all_sample_positions)):
+        for (number,(codeword,position)) in enumerate(zip(curr_sample_codewords,sample_positions)):
             total_transfers = codeword.weight()
             total_volume = total_transfers * transfer_volume
             OUTFILE.write("%s\t%s\t%s\t%s\t%s\n"%(number, position, codeword.string(), total_transfers, total_volume))
@@ -891,8 +836,8 @@ def write_data_to_outfile(main_outfile, sample_codewords, all_sample_positions, 
     # pool data (first normal, then mirror, with a header for each)
     pool_transfers = {}
     OUTFILE.write("\n")
-    for setname, curr_pool_positions, curr_sample_codewords in [('', all_pool_positions, sample_codewords), 
-                                                        ('mirror', all_mirror_pool_positions, mirror_sample_codewords)]:
+    for setname, curr_pool_positions, curr_sample_codewords in [('', pool_positions, sample_codewords), 
+                                                            ('mirror', mirror_pool_positions, mirror_sample_codewords)]:
         if curr_pool_positions:     # only print the header if there's any content
             OUTFILE.write("%spool_number\tplate_and_well_position\tpooling_scheme\ttransfers\tvolume (ul)\n" 
                           %('' if setname=='' else setname+'_'))
@@ -909,8 +854,8 @@ def write_data_to_outfile(main_outfile, sample_codewords, all_sample_positions, 
     #  and remove the folder name, since they're in the same folder as the main_outfile
     nice_outfile_list = str(outfiles_Biomek)[1:-1].replace("'",'').replace(os.path.dirname(main_outfile)+os.path.sep,'')
     OUTFILE.write("\n# Corresponding Biomek command file(s): %s\n"%nice_outfile_list)
-    OUTFILE.write("# Total %s samples into %s pools (and %s mirror pools)\n"%(len(all_sample_positions), 
-                                                            len(all_pool_positions), len(all_mirror_pool_positions)))
+    OUTFILE.write("# Total %s samples into %s pools (and %s mirror pools)\n"%(len(sample_positions), len(pool_positions), 
+                                                        len(mirror_pool_positions)))
     for setname, curr_sample_transfers in sample_transfers.items():
         min_transfers, max_transfers = min(curr_sample_transfers), max(curr_sample_transfers)
         OUTFILE.write("%stransfers from samples: "%('' if setname=='' else setname+' '))
@@ -956,7 +901,7 @@ def define_option_parser():
     parser.add_option('-s','--size_of_sample_plates', type='choice', choices=defined_plate_types, default='96',
                       help="Sample (source) plate size (allowed values: %s) "%defined_plate_types_str 
                           +"(default %default)", metavar='M')
-    parser.add_option('-S','--size_of_pool_plates',type='choice', choices=defined_plate_types, default='fake6_cycle4',
+    parser.add_option('-S','--size_of_pool_plates',type='choice', choices=defined_plate_types, default='fake6',
                       help="Pool (destination) plate size (allowed values: %s) "%defined_plate_types_str 
                           +"(default %default)", metavar='M')
     parser.add_option('-p','--number_of_sample_plates', type='int', default=1, metavar='N', 
@@ -1040,23 +985,23 @@ def run_main_function(parser,options,args):
     input_plate_names = get_plate_name_list_from_input(options.number_of_sample_plates, options.sample_plate_IDs)
     output_plate_names = get_plate_name_list_from_input(options.number_of_pool_plates, options.pool_plate_IDs)
     # generate the plate+well position strings for each input sample and each output pool
-    sample_position_getters, all_sample_positions = numbers_to_plate_and_well_IDs(options.number_of_samples, 
-                                      options.size_of_sample_plates, options.number_of_sample_plates, input_plate_names)
-    pool_position_getters, all_pool_positions = numbers_to_plate_and_well_IDs(options.number_of_pools, 
-                                      options.size_of_pool_plates, options.number_of_pool_plates, output_plate_names)
+    sample_positions = numbers_to_plate_and_well_IDs(options.number_of_samples, options.size_of_sample_plates, 
+                                                     options.number_of_sample_plates, input_plate_names)
+    pool_positions = numbers_to_plate_and_well_IDs(options.number_of_pools, options.size_of_pool_plates, 
+                                                   options.number_of_pool_plates, output_plate_names)
     # generate the Biomek transfer command list based on sample codewords and sample/pool positions
-    Biomek_file_commands = make_Biomek_file_commands(sample_codewords, sample_position_getters, pool_position_getters, 
+    Biomek_file_commands = make_Biomek_file_commands(sample_codewords, sample_positions, pool_positions, 
                                                      options.volume_per_transfer)
     # optionally generate mirror Biomek files: invert the codewords, add suffix to pool plate names, run same functions.
     if options.add_mirror_pooling_files:
         mirror_sample_codewords = [~codeword for codeword in sample_codewords]
         mirror_output_plate_names = [plate_name+options.mirror_pool_plate_suffix for plate_name in output_plate_names]
-        mirror_pool_position_getters, all_mirror_pool_positions = numbers_to_plate_and_well_IDs(options.number_of_pools, 
-                                options.size_of_pool_plates, options.number_of_pool_plates, mirror_output_plate_names)
-        mirror_Biomek_file_commands = make_Biomek_file_commands(mirror_sample_codewords, sample_position_getters, 
-                                                                mirror_pool_position_getters, options.volume_per_transfer)
+        mirror_pool_positions = numbers_to_plate_and_well_IDs(options.number_of_pools, options.size_of_pool_plates, 
+                                                              options.number_of_pool_plates, mirror_output_plate_names)
+        mirror_Biomek_file_commands = make_Biomek_file_commands(mirror_sample_codewords, sample_positions, 
+                                                                mirror_pool_positions, options.volume_per_transfer)
     else:
-        mirror_sample_codewords, mirror_pool_position_getters, all_mirror_pool_positions = [], [], []
+        mirror_sample_codewords, mirror_pool_positions = [], []
 
     ### write data to outfiles, keeping track of real outfile names as returned by data-writing functions
     Biomek_real_outfile_dict = {main_outfile: main_outfile}
@@ -1072,8 +1017,8 @@ def run_main_function(parser,options,args):
     outfiles_Biomek = [Biomek_real_outfile_dict[f] for f in outfiles_Biomek]
     outfiles_Biomek_mirror = [Biomek_real_outfile_dict[f] for f in outfiles_Biomek_mirror]
     # write full data (including a header, all Biomek outfile names, samples/destinations/codewords) to main_outfile
-    write_data_to_outfile(main_outfile, sample_codewords, all_sample_positions, all_pool_positions, 
-                          outfiles_Biomek+outfiles_Biomek_mirror, mirror_sample_codewords, all_mirror_pool_positions, 
+    write_data_to_outfile(main_outfile, sample_codewords, sample_positions, pool_positions, 
+                          outfiles_Biomek+outfiles_Biomek_mirror, mirror_sample_codewords, mirror_pool_positions, 
                           options.volume_per_transfer, options)
     # return (and optionally print) list of all the outfiles generated
     if not options.quiet:  
