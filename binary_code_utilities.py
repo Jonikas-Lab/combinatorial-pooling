@@ -11,6 +11,17 @@ import random
 import unittest
 import bitstring
 
+# test bitstring module BitArray.bin behavior!  It changed at some point between early 2012 and early 2013...
+_b = bitstring.BitArray(bin='111').bin
+if _b == '111':         _bitstring_behavior = 'NEW'
+elif _b == '0b111':     _bitstring_behavior = 'OLD'
+else:                     
+    sys.exit("Unexpected bitstring module behavior!  bitstring.BitArray(bin='111') should be '111' or '0b111', is %s!"%_bin)
+
+# two functions to get binary string from BitArray, depending on bitstring module version
+def _get_Bc_string_old(binary_codeword):    return binary_codeword.codeword.bin[2:]
+def _get_Bc_string_new(binary_codeword):    return binary_codeword.codeword.bin
+
 # my modules
 from general_utilities import invert_dict_tolists, invert_listdict_tolists
 
@@ -68,9 +79,11 @@ class Binary_codeword:
         """ Return the number of 1's in the codeword (i.e. the Hamming weight or bitwise sum)."""
         return self.codeword.count(1)
 
-    def string(self):
-        """ Return a plain 0/1 string representation. """
-        return self.codeword.bin[2:]
+    # string function depends on bitstring module version/behavior (it changed on me at some point)
+    #  (I'm doing it this way instead of putting a test inside the string function for speed)
+    if _bitstring_behavior == 'NEW':        string = _get_Bc_string_new
+    elif _bitstring_behavior == 'OLD':      string = _get_Bc_string_old
+    string.__doc__ = """ Return a plain 0/1 string representation. """
 
     def list(self):
         """ Return a representation as a list of ints (0 or 1). """
@@ -96,6 +109,7 @@ class Binary_codeword:
         #     there can be cases where x==y but hash(x)!=hash(y), which is BAD for hashing.  
         #   See http://docs.python.org/reference/datamodel.html#object.__hash__ for more on this.
         # MAYBE-TODO in order to make this absolutely right, I should make sure the bitstrings are immutable... How?
+        #   Apparently newer version of bistring has an immutable Bits type - could use that instead of BitArray?
         # MAYBE-TODO is string comparison really what I want here?  How about when the lengths are different? Should 
         #   bitstrings with different lengths even be comparable?  I suppose they should just so I can sort stuff and 
         #   get a consistent result. Possibly just sorting by length first would be better, but it doesn't matter much.
