@@ -75,6 +75,7 @@ class Binary_codeword:
                 raise BinaryCodeError("Can't pad the codeword %s to length %s, "%(self.codeword,length)
                                       + "since that's lower than its current length!")
 
+    # TODO this should be a property, really!  Same for a lot of the below.
     def weight(self):
         """ Return the number of 1's in the codeword (i.e. the Hamming weight or bitwise sum)."""
         return self.codeword.count(1)
