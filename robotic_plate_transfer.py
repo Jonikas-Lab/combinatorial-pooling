@@ -649,9 +649,16 @@ def get_plate_name_list_from_input(N_plates,ID_input):
         raise PlateTransferError("Can't figure out how to name %s plates using input \"%s\"!"%(N_plates,ID_input))
 
 
-def numbers_to_plate_and_well_IDs(N_samples, plate_type_name, N_plates, plate_IDs):
+def numbers_to_plate_and_well_IDs(N_samples, plate_type_name, N_plates, plate_IDs, zero_padding=False):
     """ Given the number of samples and plate information, return a list of with plate/well positions for each sample.
-    The list will be of length N_samples, about like this: ['plate1,A1','plate1,A2',...,'plate1,H12','plate2,A1',...]. """
+
+    The returned will be of length N_samples, about like this: ['plate1,A1','plate1,A2',...,'plate1,H12','plate2,A1',...]. 
+
+    N_samples is the total number of samples; N_plates is the number of plates, which should match the length of plate_IDs; 
+     plate_IDs is a list of arbitrary plate ID strings (like ['plate1', 'plate2']);
+     plate_type_name should be one of defined_plate_types_str.
+    If zero_padding is True, the wells will be A01 instead of A1.
+    """
 
     if not len(plate_IDs)==N_plates:
         raise PlateTransferError("The number of plates must match the number of plate IDs provided!")
@@ -672,9 +679,12 @@ def numbers_to_plate_and_well_IDs(N_samples, plate_type_name, N_plates, plate_ID
         well_number = i % plate_size
         plate_ID = plate_IDs[plate_number]
         well_ID = plate_instances[plate_number].get_well_ID_from_number(well_number)
+        if zero_padding:
+            well_ID = well_ID[0] + '%02d'%int(well_ID[1:])
         position_list.append("%s,%s"%(plate_ID,well_ID))
 
     return position_list
+
 # TODO TODO TODO this isn't good! If I pass position lists around like that, each transfer will always use the same position, even when it's a fake6_complex plate type where different transfers should use different positions!
 
 
